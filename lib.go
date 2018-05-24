@@ -10,6 +10,10 @@ import (
 	"github.com/qri-io/dataset"
 )
 
+// Version is the current version of this skytf, this version number will be written
+// with each transformation exectution
+const Version = "0.0.1-dev"
+
 // commit gets called once to set the data to be created
 type commit struct {
 	called bool

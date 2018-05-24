@@ -3,7 +3,9 @@
 package skytf
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"log"
 
 	"github.com/google/skylark"
@@ -19,6 +21,7 @@ type ExecOpts struct {
 	AllowSet       bool // allow set data type
 	AllowLambda    bool // allow lambda expressions
 	AllowNestedDef bool // allow nested def statements
+	Secrets        map[string]interface{}
 }
 
 // DefaultExecOpts applies default options to an ExecOpts pointer
@@ -29,6 +32,11 @@ func DefaultExecOpts(o *ExecOpts) {
 
 // ExecFile executes a transformation against a filepath
 func ExecFile(ds *dataset.Dataset, filename string, opts ...func(o *ExecOpts)) (dsio.EntryReader, error) {
+	var (
+		scriptdata []byte
+		err        error
+	)
+
 	o := &ExecOpts{}
 	DefaultExecOpts(o)
 	for _, opt := range opts {
@@ -40,10 +48,17 @@ func ExecFile(ds *dataset.Dataset, filename string, opts ...func(o *ExecOpts)) (
 	resolve.AllowLambda = o.AllowLambda
 	resolve.AllowNestedDef = o.AllowNestedDef
 
+	scriptdata, err = ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
 	if ds.Transform == nil {
 		ds.Transform = &dataset.Transform{}
 	}
 	ds.Transform.Syntax = "skylark"
+	ds.Transform.SyntaxVersion = Version
+	ds.Transform.Script = bytes.NewReader(scriptdata)
 
 	cm := commit{}
 	cf := newConfig(ds)
@@ -53,10 +68,8 @@ func ExecFile(ds *dataset.Dataset, filename string, opts ...func(o *ExecOpts)) (
 	skylark.Universe["fetch_json_url"] = skylark.NewBuiltin("fetch_json_url", hr.FetchJSONUrl)
 
 	thread := &skylark.Thread{Load: repl.MakeLoad()}
-	// globals := make(skylark.StringDict)
 
 	// Execute specified file.
-	var err error
 	_, err = skylark.ExecFile(thread, filename, nil, nil)
 	if err != nil {
 		log.Print(err.Error())
@@ -67,17 +80,6 @@ func ExecFile(ds *dataset.Dataset, filename string, opts ...func(o *ExecOpts)) (
 		return nil, fmt.Errorf("commit must be called once to add data")
 	}
 
-	// Print the global environment.
-	// var names []string
-	// for name := range globals {
-	// 	if !strings.HasPrefix(name, "_") {
-	// 		names = append(names, name)
-	// 	}
-	// }
-	// sort.Strings(names)
-	// for _, name := range names {
-	// 	fmt.Fprintf(os.Stderr, "%s = %s\n", name, globals[name])
-	// }
 	sch := dataset.BaseSchemaArray
 	if cm.data.Type() == "dict" {
 		sch = dataset.BaseSchemaObject
