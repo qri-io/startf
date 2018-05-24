@@ -1,13 +1,15 @@
-package sltf
+package skytf
 
 import (
 	"testing"
 
+	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
 )
 
 func TestExecFile(t *testing.T) {
-	ds, er, err := ExecFile("testdata/tf.sky")
+	ds := &dataset.Dataset{}
+	er, err := ExecFile(ds, "testdata/tf.sky")
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -25,7 +27,19 @@ func TestExecFile(t *testing.T) {
 		return nil
 	})
 
-	if i != 3 {
-		t.Errorf("expected 3 entries, got: %d", i)
+	if i != 8 {
+		t.Errorf("expected 8 entries, got: %d", i)
+	}
+}
+
+func TestExecFile2(t *testing.T) {
+	ds := &dataset.Dataset{}
+	_, err := ExecFile(ds, "testdata/fetch.sky")
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	if ds.Transform == nil {
+		t.Error("expected transform")
 	}
 }

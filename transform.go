@@ -28,7 +28,7 @@ func DefaultExecOpts(o *ExecOpts) {
 }
 
 // ExecFile executes a transformation against a filepath
-func ExecFile(filename string, opts ...func(o *ExecOpts)) (*dataset.Dataset, dsio.EntryReader, error) {
+func ExecFile(ds *dataset.Dataset, filename string, opts ...func(o *ExecOpts)) (dsio.EntryReader, error) {
 	o := &ExecOpts{}
 	DefaultExecOpts(o)
 	for _, opt := range opts {
@@ -40,8 +40,17 @@ func ExecFile(filename string, opts ...func(o *ExecOpts)) (*dataset.Dataset, dsi
 	resolve.AllowLambda = o.AllowLambda
 	resolve.AllowNestedDef = o.AllowNestedDef
 
+	if ds.Transform == nil {
+		ds.Transform = &dataset.Transform{}
+	}
+	ds.Transform.Syntax = "skylark"
+
 	cm := commit{}
+	cf := newConfig(ds)
+	hr := newHTTPRequests(ds)
 	skylark.Universe["commit"] = skylark.NewBuiltin("commit", cm.Do)
+	skylark.Universe["get_config"] = skylark.NewBuiltin("get_config", cf.GetConfig)
+	skylark.Universe["fetch_json_url"] = skylark.NewBuiltin("fetch_json_url", hr.FetchJSONUrl)
 
 	thread := &skylark.Thread{Load: repl.MakeLoad()}
 	// globals := make(skylark.StringDict)
@@ -51,11 +60,11 @@ func ExecFile(filename string, opts ...func(o *ExecOpts)) (*dataset.Dataset, dsi
 	_, err = skylark.ExecFile(thread, filename, nil, nil)
 	if err != nil {
 		log.Print(err.Error())
-		return nil, nil, err
+		return nil, err
 	}
 
 	if !cm.called {
-		return nil, nil, fmt.Errorf("commit must be called once to add data")
+		return nil, fmt.Errorf("commit must be called once to add data")
 	}
 
 	// Print the global environment.
@@ -69,45 +78,22 @@ func ExecFile(filename string, opts ...func(o *ExecOpts)) (*dataset.Dataset, dsi
 	// for _, name := range names {
 	// 	fmt.Fprintf(os.Stderr, "%s = %s\n", name, globals[name])
 	// }
-
-	ds := &dataset.Dataset{
-		Structure: &dataset.Structure{
-			Format: dataset.UnknownDataFormat,
-			Schema: dataset.BaseSchemaArray,
-		},
-		Transform: &dataset.Transform{
-			Syntax: "skylark",
-		},
+	sch := dataset.BaseSchemaArray
+	if cm.data.Type() == "dict" {
+		sch = dataset.BaseSchemaObject
 	}
 
-	r := NewEntryReader(ds.Structure, cm.data)
-	return ds, r, nil
-}
-
-type commit struct {
-	called bool
-	data   skylark.Iterable
-}
-
-// Do executes a commit. must be called exactly once per transformation
-func (c *commit) Do(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
-	if c.called {
-		return skylark.False, fmt.Errorf("commit can only be called once per transformation")
+	st := &dataset.Structure{
+		Format: dataset.UnknownDataFormat,
+		Schema: sch,
 	}
 
-	if err := skylark.UnpackPositionalArgs("foo", args, kwargs, 1, &c.data); err != nil {
-		return nil, err
+	if ds.Structure == nil {
+		ds.Structure = st
 	}
 
-	// iter := iterable.Iterate()
-	// defer iter.Done()
-	// var x skylark.Value
-	// for iter.Next(&x) {
-	// 	if x.Truth() {
-	// 		return skylark.True, nil
-	// 	}
-	// }
+	// fmt.Printf("%v", cm.data)
 
-	c.called = true
-	return skylark.True, nil
+	r := NewEntryReader(st, cm.data)
+	return r, nil
 }
