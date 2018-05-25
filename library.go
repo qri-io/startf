@@ -38,24 +38,48 @@ func (c *commit) Do(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tup
 	return skylark.True, nil
 }
 
-// config fetches configuration details from a qri transformation
-type config struct {
+// datasetBuiltins defines commands that interact with the context dataset
+type datasetBuiltins struct {
 	ds *dataset.Dataset
 }
 
-func newConfig(ds *dataset.Dataset) *config {
-	return &config{
+func newDatasetBuiltins(ds *dataset.Dataset) *datasetBuiltins {
+	return &datasetBuiltins{
 		ds: ds,
 	}
 }
 
 // GetConfig returns transformation configuration details
-func (c *config) GetConfig(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
-	if c.ds.Transform.Config == nil {
+func (dsb *datasetBuiltins) GetConfig(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+	if dsb.ds.Transform.Config == nil {
 		return skylark.None, nil
 	}
 
-	return parseJSONSkylark(c.ds.Transform.Config)
+	return parseJSONSkylark(dsb.ds.Transform.Config)
+}
+
+// SetMeta sets a dataset meta field
+func (dsb *datasetBuiltins) SetMeta(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+	var keyx, valx skylark.Value
+	if err := skylark.UnpackPositionalArgs("set_meta", args, kwargs, 2, &keyx, &valx); err != nil {
+		return nil, err
+	}
+
+	if keyx.Type() != "string" {
+		return nil, fmt.Errorf("expected key to be a string")
+	}
+
+	key, err := asString(keyx)
+	if err != nil {
+		return nil, fmt.Errorf("parsing string key: %s", err.Error())
+	}
+
+	val, err := parse(valx)
+	if err != nil {
+		return nil, err
+	}
+
+	return skylark.None, dsb.ds.Meta.Set(key, val)
 }
 
 // httpRequests joins http tools to a dataset, allowing dataset
@@ -149,4 +173,16 @@ func parseJSONSkylark(data interface{}) (v skylark.Value, err error) {
 		v = dict
 	}
 	return
+}
+
+// Error halts program execution with an error
+func Error(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+	var msg skylark.Value
+	if err := skylark.UnpackPositionalArgs("error", args, kwargs, 1, &msg); err != nil {
+		return nil, err
+	}
+	if str, err := asString(msg); err == nil {
+		return nil, fmt.Errorf("transform error: %s", str)
+	}
+	return nil, fmt.Errorf("tranform errored (no valid message provided)")
 }

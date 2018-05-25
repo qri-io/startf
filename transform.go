@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"log"
 
 	"github.com/google/skylark"
 	"github.com/google/skylark/repl"
@@ -60,11 +59,16 @@ func ExecFile(ds *dataset.Dataset, filename string, opts ...func(o *ExecOpts)) (
 	ds.Transform.SyntaxVersion = Version
 	ds.Transform.Script = bytes.NewReader(scriptdata)
 
+	skylark.Universe["error"] = skylark.NewBuiltin("error", Error)
+
 	cm := commit{}
-	cf := newConfig(ds)
-	hr := newHTTPRequests(ds)
 	skylark.Universe["commit"] = skylark.NewBuiltin("commit", cm.Do)
-	skylark.Universe["get_config"] = skylark.NewBuiltin("get_config", cf.GetConfig)
+
+	dsb := newDatasetBuiltins(ds)
+	skylark.Universe["get_config"] = skylark.NewBuiltin("get_config", dsb.GetConfig)
+	skylark.Universe["set_meta"] = skylark.NewBuiltin("set_meta", dsb.SetMeta)
+
+	hr := newHTTPRequests(ds)
 	skylark.Universe["fetch_json_url"] = skylark.NewBuiltin("fetch_json_url", hr.FetchJSONUrl)
 
 	thread := &skylark.Thread{Load: repl.MakeLoad()}
@@ -72,7 +76,6 @@ func ExecFile(ds *dataset.Dataset, filename string, opts ...func(o *ExecOpts)) (
 	// Execute specified file.
 	_, err = skylark.ExecFile(thread, filename, nil, nil)
 	if err != nil {
-		log.Print(err.Error())
 		return nil, err
 	}
 
