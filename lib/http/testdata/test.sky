@@ -1,0 +1,8 @@
+load('http.sky', 'http')
+load('assert.sky', 'assert')
+
+res_1 = http.get(test_server_url)
+assert.eq(res_1, '{"hello":"world"}')
+
+res_2 = http.get_json(test_server_url)
+assert.eq(res_2["hello"], "world")

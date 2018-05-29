@@ -1,3 +1,6 @@
-res = fetch_json_url('https://api.github.com/repos/qri-io/qri/releases')
+load('qri.sky', 'qri')
+load('http.sky', 'http')
 
-commit(res[0]['assets'])
+res = http.get_json('https://api.github.com/repos/qri-io/qri/releases')
+
+qri.commit(res[0]['assets'])

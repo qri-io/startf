@@ -1,0 +1,5 @@
+load('qri.sky', 'qri')
+
+cfg = qri.get_config()
+
+qri.commit([1,2,3,4,5,6])
