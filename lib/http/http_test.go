@@ -40,7 +40,7 @@ func newLoader(ds *dataset.Dataset) func(thread *skylark.Thread, module string) 
 	return func(thread *skylark.Thread, module string) (skylark.StringDict, error) {
 		switch module {
 		case ModuleName:
-			return NewModule(ds)
+			return skylark.StringDict{"http" :NewModule(ds).Struct() }, nil
 		case "assert.sky":
 			return skylarktest.LoadAssertModule()
 		}

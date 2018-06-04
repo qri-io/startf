@@ -11,30 +11,37 @@ import (
 	"github.com/qri-io/skytf/lib"
 )
 
-// ModuleName defines the expected name for this module when used
+// ModuleName defines the expected name for this Module when used
 // in skylark's load() function, eg: load('http.sky', 'http')
 const ModuleName = "http.sky"
 
-// NewModule creates an http module
-func NewModule(ds *dataset.Dataset) (skylark.StringDict, error) {
-	m := &module{ds: ds, cli: http.DefaultClient}
-	st := skylarkstruct.FromStringDict(skylarkstruct.Default, skylark.StringDict{
-		"get":      skylark.NewBuiltin("get", m.Get),
-		"get_json": skylark.NewBuiltin("get_json", m.GetJSON),
-	})
-
-	return skylark.StringDict{"http": st}, nil
+// NewModule creates an http Module
+func NewModule(ds *dataset.Dataset) *Module {
+	return &Module{ds: ds, cli: http.DefaultClient}
 }
 
-// module joins http tools to a dataset, allowing dataset
+// Module joins http tools to a dataset, allowing dataset
 // to follow along with http requests
-type module struct {
+type Module struct {
 	cli *http.Client
 	ds  *dataset.Dataset
 }
 
+// Struct returns this module's methods as a skylark Struct
+func (m *Module) Struct() *skylarkstruct.Struct {
+	return skylarkstruct.FromStringDict(skylarkstruct.Default, m.StringDict())
+}
+
+// StringDict returns all module methdos in a skylark.StringDict
+func (m *Module) StringDict() skylark.StringDict {
+	return skylark.StringDict{
+		"get":      skylark.NewBuiltin("get", m.Get),
+		"get_json": skylark.NewBuiltin("get_json", m.GetJSON),
+	}
+}
+
 // Get a URL
-func (m *module) Get(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+func (m *Module) Get(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
 	var url skylark.Value
 	if err := skylark.UnpackPositionalArgs("get", args, kwargs, 1, &url); err != nil {
 		return nil, err
@@ -64,7 +71,7 @@ func (m *module) Get(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tu
 }
 
 // GetJSON fetches a url & parses it as json, passing back a skylark value
-func (m *module) GetJSON(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+func (m *Module) GetJSON(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
 	var url skylark.Value
 	if err := skylark.UnpackPositionalArgs("get_json", args, kwargs, 1, &url); err != nil {
 		return nil, err

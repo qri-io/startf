@@ -1,15 +1,15 @@
 package lib
 
 import (
-"fmt"
-  "strconv"
+	"fmt"
+	"strconv"
 
 	"github.com/google/skylark"
 )
 
 // AsString unquotes a skylark string value
 func AsString(x skylark.Value) (string, error) {
-  return strconv.Unquote(x.String())
+	return strconv.Unquote(x.String())
 }
 
 // Unmarshal decodes a skylark.Value into it's golang counterpart
@@ -115,39 +115,39 @@ func Unmarshal(x skylark.Value) (val interface{}, err error) {
 
 // Marshal turns go values into skylark types
 func Marshal(data interface{}) (v skylark.Value, err error) {
-  switch x := data.(type) {
-  case nil:
-    v = skylark.None
-  case bool:
-    v = skylark.Bool(x)
-  case string:
-    v = skylark.String(x)
-  case int:
-    v = skylark.MakeInt(x)
-  case float64:
-    v = skylark.Float(x)
-  case []interface{}:
-    var elems = make([]skylark.Value, len(x))
-    for i, val := range x {
-      elems[i], err = Marshal(val)
-      if err != nil {
-        return
-      }
-    }
-    v = skylark.NewList(elems)
-  case map[string]interface{}:
-    dict := &skylark.Dict{}
-    var elem skylark.Value
-    for key, val := range x {
-      elem, err = Marshal(val)
-      if err != nil {
-        return
-      }
-      if err = dict.Set(skylark.String(key), elem); err != nil {
-        return
-      }
-    }
-    v = dict
-  }
-  return
+	switch x := data.(type) {
+	case nil:
+		v = skylark.None
+	case bool:
+		v = skylark.Bool(x)
+	case string:
+		v = skylark.String(x)
+	case int:
+		v = skylark.MakeInt(x)
+	case float64:
+		v = skylark.Float(x)
+	case []interface{}:
+		var elems = make([]skylark.Value, len(x))
+		for i, val := range x {
+			elems[i], err = Marshal(val)
+			if err != nil {
+				return
+			}
+		}
+		v = skylark.NewList(elems)
+	case map[string]interface{}:
+		dict := &skylark.Dict{}
+		var elem skylark.Value
+		for key, val := range x {
+			elem, err = Marshal(val)
+			if err != nil {
+				return
+			}
+			if err = dict.Set(skylark.String(key), elem); err != nil {
+				return
+			}
+		}
+		v = dict
+	}
+	return
 }
