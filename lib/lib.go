@@ -122,8 +122,9 @@ func Marshal(data interface{}) (v skylark.Value, err error) {
     v = skylark.Bool(x)
   case string:
     v = skylark.String(x)
+  case int:
+    v = skylark.MakeInt(x)
   case float64:
-    // TODO - ints?
     v = skylark.Float(x)
   case []interface{}:
     var elems = make([]skylark.Value, len(x))

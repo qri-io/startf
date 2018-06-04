@@ -5,7 +5,9 @@ import (
 
 	"github.com/google/skylark"
 	"github.com/google/skylark/skylarkstruct"
+	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
+	"github.com/qri-io/dataset/dsio"
 	"github.com/qri-io/skytf/lib"
 )
 
@@ -14,8 +16,8 @@ import (
 const ModuleName = "qri.sky"
 
 // NewModule creates a new qri module instance
-func NewModule(ds *dataset.Dataset, secrets map[string]interface{}) *Module {
-	return &Module{ds: ds, secrets: secrets}
+func NewModule(ds *dataset.Dataset, secrets map[string]interface{}, infile cafs.File) *Module {
+	return &Module{ds: ds, secrets: secrets, infile: infile}
 }
 
 // Module encapsulates state for a qri skylark module
@@ -23,15 +25,17 @@ type Module struct {
 	ds      *dataset.Dataset
 	secrets map[string]interface{}
 	data    skylark.Iterable
+	infile  cafs.File
 }
 
 // Load creates a skylark module from a module instance
 func (m *Module) Load() (skylark.StringDict, error) {
 	st := skylarkstruct.FromStringDict(skylarkstruct.Default, skylark.StringDict{
-		"commit":     skylark.NewBuiltin("commit", m.Commit),
-		"set_meta":   skylark.NewBuiltin("set_meta", m.SetMeta),
-		"get_config": skylark.NewBuiltin("get_config", m.GetConfig),
-		"get_secret": skylark.NewBuiltin("get_secret", m.GetSecret),
+		"commit":      skylark.NewBuiltin("commit", m.Commit),
+		"set_meta":    skylark.NewBuiltin("set_meta", m.SetMeta),
+		"get_body":    skylark.NewBuiltin("get_body", m.GetBody),
+		"get_config":  skylark.NewBuiltin("get_config", m.GetConfig),
+		"get_secret":  skylark.NewBuiltin("get_secret", m.GetSecret),
 	})
 
 	return skylark.StringDict{"qri": st}, nil
@@ -69,6 +73,27 @@ func (m *Module) GetConfig(thread *skylark.Thread, _ *skylark.Builtin, args skyl
 		return skylark.None, nil
 	}
 	return lib.Marshal(m.ds.Transform.Config)
+}
+
+// GetBody returns the body of the dataset we're transforming
+func (m *Module) GetBody(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+	if m.infile == nil {
+		return skylark.None, fmt.Errorf("qri.get_body failed: no DataFile")
+	}
+	rr, err := dsio.NewEntryReader(m.ds.Structure, m.infile)
+	if err != nil {
+		return skylark.None, fmt.Errorf("error allocating data reader: %s", err)
+	}
+	w, err := NewSkylarkEntryWriter(m.ds.Structure)
+	if err != nil {
+		return skylark.None, fmt.Errorf("error allocating skylark entry writer: %s", err)
+	}
+
+	err = dsio.Copy(rr, w)
+	if err != nil {
+		return skylark.None, err
+	}
+	return w.Value(), nil
 }
 
 // SetMeta sets a dataset meta field

@@ -9,7 +9,7 @@ import (
 
 func TestExecFile(t *testing.T) {
 	ds := &dataset.Dataset{}
-	er, err := ExecFile(ds, "testdata/tf.sky")
+	er, err := ExecFile(ds, "testdata/tf.sky", nil)
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -34,7 +34,7 @@ func TestExecFile(t *testing.T) {
 
 func TestExecFile2(t *testing.T) {
 	ds := &dataset.Dataset{}
-	_, err := ExecFile(ds, "testdata/fetch.sky")
+	_, err := ExecFile(ds, "testdata/fetch.sky", nil)
 	if err != nil {
 		t.Error(err.Error())
 		return

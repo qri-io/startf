@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/skylark"
 	"github.com/google/skylark/resolve"
+	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
 	"github.com/qri-io/skytf/lib"
@@ -34,7 +35,7 @@ func DefaultExecOpts(o *ExecOpts) {
 // ExecFile executes a transformation against a skylark file located at filepath, giving back an EntryReader of resulting data
 // ExecFile modifies the given dataset pointer. At bare minimum it will set transformation details, but skylark scripts can modify
 // many parts of the dataset pointer, including meta, structure, and transform
-func ExecFile(ds *dataset.Dataset, filename string, opts ...func(o *ExecOpts)) (dsio.EntryReader, error) {
+func ExecFile(ds *dataset.Dataset, filename string, infile cafs.File, opts ...func(o *ExecOpts)) (dsio.EntryReader, error) {
 	var (
 		scriptdata []byte
 		err        error
@@ -70,7 +71,7 @@ func ExecFile(ds *dataset.Dataset, filename string, opts ...func(o *ExecOpts)) (
 	ds.Transform.Script = bytes.NewReader(scriptdata)
 
 	// allocate skyqri module here so we can get data back post-execution
-	m := skyqri.NewModule(ds, o.Secrets)
+	m := skyqri.NewModule(ds, o.Secrets, infile)
 
 	thread := &skylark.Thread{Load: newLoader(ds, m)}
 
