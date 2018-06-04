@@ -16,54 +16,23 @@ import (
 const ModuleName = "qri.sky"
 
 // NewModule creates a new qri module instance
-func NewModule(ds *dataset.Dataset, secrets map[string]interface{}, infile cafs.File) *Module {
-	return &Module{ds: ds, secrets: secrets, infile: infile}
+func NewModule(ds *dataset.Dataset, secrets map[string]interface{}, infile cafs.File) (skylark.StringDict, error) {
+	m := &Module{ds: ds, secrets: secrets, infile: infile}
+	st := skylarkstruct.FromStringDict(skylarkstruct.Default, skylark.StringDict{
+		"set_meta":   skylark.NewBuiltin("set_meta", m.SetMeta),
+		"get_config": skylark.NewBuiltin("get_config", m.GetConfig),
+		"get_secret": skylark.NewBuiltin("get_secret", m.GetSecret),
+		"get_body":   skylark.NewBuiltin("get_body", m.GetBody),
+	})
+
+	return skylark.StringDict{"qri": st}, nil
 }
 
 // Module encapsulates state for a qri skylark module
 type Module struct {
 	ds      *dataset.Dataset
 	secrets map[string]interface{}
-	data    skylark.Iterable
 	infile  cafs.File
-}
-
-// Load creates a skylark module from a module instance
-func (m *Module) Load() (skylark.StringDict, error) {
-	st := skylarkstruct.FromStringDict(skylarkstruct.Default, skylark.StringDict{
-		"commit":      skylark.NewBuiltin("commit", m.Commit),
-		"set_meta":    skylark.NewBuiltin("set_meta", m.SetMeta),
-		"get_body":    skylark.NewBuiltin("get_body", m.GetBody),
-		"get_config":  skylark.NewBuiltin("get_config", m.GetConfig),
-		"get_secret":  skylark.NewBuiltin("get_secret", m.GetSecret),
-	})
-
-	return skylark.StringDict{"qri": st}, nil
-}
-
-// Commit sets the data that is the result of executing this transform. must be called exactly once per transformation
-func (m *Module) Commit(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
-	if m.data != nil {
-		return skylark.False, fmt.Errorf("commit can only be called once per transformation")
-	}
-
-	if err := skylark.UnpackPositionalArgs("commit", args, kwargs, 1, &m.data); err != nil {
-		return nil, err
-	}
-
-	if !(m.data.Type() == "dict" || m.data.Type() == "list") {
-		return nil, fmt.Errorf("invalid type: %s, commit must be called with either a list or a dict", m.data.Type())
-	}
-
-	return skylark.True, nil
-}
-
-// Data gives the commit result of this transform
-func (m *Module) Data() (skylark.Iterable, error) {
-	if m.data == nil {
-		return nil, fmt.Errorf("commit wasn't called in skylark transformation")
-	}
-	return m.data, nil
 }
 
 // GetConfig returns transformation configuration details
