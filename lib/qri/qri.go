@@ -16,16 +16,8 @@ import (
 const ModuleName = "qri.sky"
 
 // NewModule creates a new qri module instance
-func NewModule(ds *dataset.Dataset, secrets map[string]interface{}, infile cafs.File) (skylark.StringDict, error) {
-	m := &Module{ds: ds, secrets: secrets, infile: infile}
-	st := skylarkstruct.FromStringDict(skylarkstruct.Default, skylark.StringDict{
-		"set_meta":   skylark.NewBuiltin("set_meta", m.SetMeta),
-		"get_config": skylark.NewBuiltin("get_config", m.GetConfig),
-		"get_secret": skylark.NewBuiltin("get_secret", m.GetSecret),
-		"get_body":   skylark.NewBuiltin("get_body", m.GetBody),
-	})
-
-	return skylark.StringDict{"qri": st}, nil
+func NewModule(ds *dataset.Dataset, secrets map[string]interface{}, infile cafs.File) *Module {
+	return &Module{ds: ds, secrets: secrets, infile: infile}
 }
 
 // Module encapsulates state for a qri skylark module
@@ -33,6 +25,20 @@ type Module struct {
 	ds      *dataset.Dataset
 	secrets map[string]interface{}
 	infile  cafs.File
+}
+
+// Struct returns this module's methods as a skylark Struct
+func (m *Module) Struct() *skylarkstruct.Struct {
+	return skylarkstruct.FromStringDict(skylarkstruct.Default, m.AddAllMethods(skylark.StringDict{}))
+}
+
+// AddAllMethods augments a skylark.StringDict with all qri builtins. Should really only be used during "transform" step
+func (m *Module) AddAllMethods(sd skylark.StringDict) skylark.StringDict {
+	sd["set_meta"] = skylark.NewBuiltin("set_meta", m.SetMeta)
+	sd["get_config"] = skylark.NewBuiltin("get_config", m.GetConfig)
+	sd["get_secret"] = skylark.NewBuiltin("get_secret", m.GetSecret)
+	sd["get_body"] = skylark.NewBuiltin("get_body", m.GetBody)
+	return sd
 }
 
 // GetConfig returns transformation configuration details

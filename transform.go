@@ -9,10 +9,12 @@ import (
 
 	"github.com/google/skylark"
 	"github.com/google/skylark/resolve"
+	"github.com/google/skylark/skylarkstruct"
 	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
 	"github.com/qri-io/skytf/lib"
+
 	skyhttp "github.com/qri-io/skytf/lib/http"
 	skyqri "github.com/qri-io/skytf/lib/qri"
 )
@@ -34,64 +36,19 @@ func DefaultExecOpts(o *ExecOpts) {
 
 type transform struct {
 	ds      *dataset.Dataset
+	globals skylark.StringDict
 	secrets map[string]interface{}
-	rules   map[string]*Protector
 	infile  cafs.File
+
+	download skylark.Iterable
 }
 
 func newTransform(ds *dataset.Dataset, secrets map[string]interface{}, infile cafs.File) *transform {
-	rules := map[string]*Protector{
-		skyqri.ModuleName: &Protector{
-			Module: "qri",
-			Rules: []Rule{
-				{"download", "", false},
-				{"download", "get_config", true},
-				{"download", "get_secret", true},
-			},
-		},
-		skyhttp.ModuleName: &Protector{
-			Module: "http",
-			Rules: []Rule{
-				{"", "", false},
-				{"download", "", true},
-			},
-		},
-	}
-
 	return &transform{
 		ds:      ds,
 		secrets: secrets,
-		rules:   rules,
 		infile:  infile,
 	}
-}
-
-func (t *transform) setStep(step string) {
-	for _, p := range t.rules {
-		p.SetStep(step)
-	}
-}
-
-func (t *transform) Loader(thread *skylark.Thread, module string) (dict skylark.StringDict, err error) {
-	switch module {
-	case skyqri.ModuleName:
-		dict, err = skyqri.NewModule(t.ds, t.secrets, t.infile)
-		if err != nil {
-			return nil, err
-		}
-	case skyhttp.ModuleName:
-		dict, err = skyhttp.NewModule(t.ds)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if dict == nil {
-		return nil, fmt.Errorf("invalid module")
-	}
-
-	t.rules[module].ProtectMethods(dict)
-	return
 }
 
 // ExecFile executes a transformation against a skylark file located at filepath, giving back an EntryReader of resulting data
@@ -134,16 +91,22 @@ func ExecFile(ds *dataset.Dataset, filename string, infile cafs.File, opts ...fu
 
 	t := newTransform(ds, o.Secrets, infile)
 
-	var globals skylark.StringDict
-	thread := &skylark.Thread{Load: t.Loader}
+	thread := &skylark.Thread{Load: loader}
 
 	// execute the transformation
-	globals, err = skylark.ExecFile(thread, filename, nil, nil)
+	t.globals, err = skylark.ExecFile(thread, filename, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	data, err := t.execTransformSteps(globals, thread, "download", "map", "reduce", "transform")
+	var data skylark.Iterable
+	data, err = t.callDownloadFunc(thread, data)
+	if err != nil {
+		return nil, err
+	}
+	t.download = data
+
+	data, err = t.callTransformFunc(thread, data)
 	if err != nil {
 		return nil, err
 	}
@@ -178,41 +141,17 @@ func Error(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwarg
 	return nil, fmt.Errorf("tranform errored (no valid message provided)")
 }
 
+// loader is currently not in use
+func loader(thread *skylark.Thread, module string) (dict skylark.StringDict, err error) {
+	return nil, fmt.Errorf("load is not permitted when executing a qri transformation")
+}
+
 // ErrNotDefined is for when a skylark value is not defined or does not exist
 var ErrNotDefined = fmt.Errorf("not defined")
 
-func (t *transform) execTransformSteps(globals skylark.StringDict, thread *skylark.Thread, chain ...string) (data skylark.Iterable, err error) {
-	var (
-		called bool
-		fn     *skylark.Function
-	)
-
-	for _, step := range chain {
-		t.setStep(step)
-		if fn, err = isDictFunc(globals, step); err != nil {
-			if err == ErrNotDefined {
-				err = nil
-				continue
-			}
-			return
-		}
-
-		called = true
-		data, err = callDataFunc(fn, thread, data)
-		if err != nil {
-			return
-		}
-	}
-	if !called {
-		return nil, fmt.Errorf("no data functions were defined")
-	}
-
-	return
-}
-
-// isDictFunc checks if a skylark string dictionary value is a function
-func isDictFunc(globals skylark.StringDict, name string) (fn *skylark.Function, err error) {
-	x, ok := globals[name]
+// globalFunc checks global function is defined
+func (t *transform) globalFunc(name string) (fn *skylark.Function, err error) {
+	x, ok := t.globals[name]
 	if !ok {
 		return fn, ErrNotDefined
 	}
@@ -222,15 +161,56 @@ func isDictFunc(globals skylark.StringDict, name string) (fn *skylark.Function, 
 	return x.(*skylark.Function), nil
 }
 
-func callDataFunc(fn *skylark.Function, thread *skylark.Thread, data skylark.Iterable) (skylark.Iterable, error) {
-	x, err := fn.Call(thread, skylark.Tuple{data}, nil)
-	if err != nil {
-		return nil, err
-	}
-
+func confirmIterable(x skylark.Value) (skylark.Iterable, error) {
 	v, ok := x.(skylark.Iterable)
 	if !ok {
 		return nil, fmt.Errorf("did not return structured data")
 	}
 	return v, nil
+}
+
+
+func (t *transform) callDownloadFunc(thread *skylark.Thread, prev skylark.Iterable) (data skylark.Iterable, err error) {
+	var download *skylark.Function
+	if download, err = t.globalFunc("download"); err != nil {
+		if err == ErrNotDefined {
+			return prev, nil
+		}
+		return prev, err
+	}
+
+	qm := skyqri.NewModule(t.ds, t.secrets, t.infile)
+
+	qri := skylarkstruct.FromStringDict(skylarkstruct.Default, skylark.StringDict{
+		"get_config": skylark.NewBuiltin("get_config", qm.GetConfig),
+		"get_secret": skylark.NewBuiltin("get_secret", qm.GetSecret),
+		"http":       skyhttp.NewModule(t.ds).Struct(),
+	})
+
+	x, err := download.Call(thread, skylark.Tuple{qri}, nil)
+	if err != nil {
+		return nil, err
+	}
+	return confirmIterable(x)
+}
+
+func (t *transform) callTransformFunc(thread *skylark.Thread, prev skylark.Iterable) (data skylark.Iterable, err error) {
+	var transform *skylark.Function
+	if transform, err = t.globalFunc("transform"); err != nil {
+		if err == ErrNotDefined {
+			return prev, nil
+		}
+		return prev, err
+	}
+
+	qm := skyqri.NewModule(t.ds, t.secrets, t.infile)
+	qri := skylarkstruct.FromStringDict(skylarkstruct.Default, qm.AddAllMethods(skylark.StringDict{
+		"download": t.download,
+	}))
+
+	x, err := transform.Call(thread, skylark.Tuple{qri}, nil)
+	if err != nil {
+		return nil, err
+	}
+	return confirmIterable(x)
 }
