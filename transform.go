@@ -26,12 +26,14 @@ type ExecOpts struct {
 	AllowLambda    bool                   // allow lambda expressions
 	AllowNestedDef bool                   // allow nested def statements
 	Secrets        map[string]interface{} // passed-in secrets (eg: API keys)
+	Globals        skylark.StringDict
 }
 
 // DefaultExecOpts applies default options to an ExecOpts pointer
 func DefaultExecOpts(o *ExecOpts) {
 	o.AllowFloat = true
 	o.AllowSet = true
+	o.Globals = skylark.StringDict{}
 }
 
 type transform struct {
@@ -74,6 +76,9 @@ func ExecFile(ds *dataset.Dataset, filename string, infile cafs.File, opts ...fu
 
 	// add error func to skylark environment
 	skylark.Universe["error"] = skylark.NewBuiltin("error", Error)
+	for key, val := range o.Globals {
+		skylark.Universe[key] = val
+	}
 
 	// set transform details
 	if ds.Transform == nil {
@@ -168,7 +173,6 @@ func confirmIterable(x skylark.Value) (skylark.Iterable, error) {
 	}
 	return v, nil
 }
-
 
 func (t *transform) callDownloadFunc(thread *skylark.Thread, prev skylark.Iterable) (data skylark.Iterable, err error) {
 	var download *skylark.Function

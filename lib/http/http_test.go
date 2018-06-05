@@ -14,6 +14,7 @@ import (
 func TestNewModule(t *testing.T) {
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Date", "Mon, 01 Jun 2000 00:00:00 GMT")
 		w.Write([]byte(`{"hello":"world"}`))
 	}))
 	skylark.Universe["test_server_url"] = skylark.String(ts.URL)
@@ -27,6 +28,7 @@ func TestNewModule(t *testing.T) {
 		},
 	}
 	thread := &skylark.Thread{Load: newLoader(ds)}
+	skylarktest.SetReporter(thread, t)
 
 	// Execute test file
 	_, err := skylark.ExecFile(thread, "testdata/test.sky", nil, nil)
@@ -40,7 +42,7 @@ func newLoader(ds *dataset.Dataset) func(thread *skylark.Thread, module string) 
 	return func(thread *skylark.Thread, module string) (skylark.StringDict, error) {
 		switch module {
 		case ModuleName:
-			return skylark.StringDict{"http" :NewModule(ds).Struct() }, nil
+			return skylark.StringDict{"http": NewModule(ds).Struct()}, nil
 		case "assert.sky":
 			return skylarktest.LoadAssertModule()
 		}

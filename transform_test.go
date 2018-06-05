@@ -1,8 +1,11 @@
 package skytf
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/google/skylark"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
 )
@@ -33,8 +36,16 @@ func TestExecFile(t *testing.T) {
 }
 
 func TestExecFile2(t *testing.T) {
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"foo":["bar","baz","bat"]}`))
+	}))
+
 	ds := &dataset.Dataset{}
-	_, err := ExecFile(ds, "testdata/fetch.sky", nil)
+	_, err := ExecFile(ds, "testdata/fetch.sky", nil, func(o *ExecOpts) {
+		o.Globals["test_server_url"] = skylark.String(s.URL)
+	})
+
 	if err != nil {
 		t.Error(err.Error())
 		return
