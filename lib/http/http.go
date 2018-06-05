@@ -56,10 +56,11 @@ func (m *Module) reqMethod(method string) func(thread *skylark.Thread, _ *skylar
 			params   = &skylark.Dict{}
 			headers  = &skylark.Dict{}
 			data     = &skylark.Dict{}
+			auth     skylark.Tuple
 			jsondata skylark.Value
 		)
 
-		if err := skylark.UnpackArgs(method, args, kwargs, "url", &urlv, "params?", &params, "headers", &headers, "data", &data, "json", &jsondata); err != nil {
+		if err := skylark.UnpackArgs(method, args, kwargs, "url", &urlv, "params?", &params, "headers", &headers, "data", &data, "json", &jsondata, "auth", &auth); err != nil {
 			return nil, err
 		}
 
@@ -71,12 +72,15 @@ func (m *Module) reqMethod(method string) func(thread *skylark.Thread, _ *skylar
 			return nil, err
 		}
 
-		req, err := http.NewRequest(method, rawurl, nil)
+		req, err := http.NewRequest(strings.ToUpper(method), rawurl, nil)
 		if err != nil {
 			return nil, err
 		}
 
 		if err = setHeaders(req, headers); err != nil {
+			return nil, err
+		}
+		if err = setAuth(req, auth); err != nil {
 			return nil, err
 		}
 		if err = setBody(req, data, jsondata); err != nil {
@@ -129,6 +133,23 @@ func setQueryParams(rawurl *string, params *skylark.Dict) error {
 	u.RawQuery = q.Encode()
 	*rawurl = u.String()
 	return nil
+}
+
+func setAuth(req *http.Request, auth skylark.Tuple) error {
+	if len(auth) == 0 {
+		return nil
+	} else if len(auth) == 2 {
+		username, err := lib.AsString(auth[0])
+		if err != nil {
+			return fmt.Errorf("parsing auth username string: %s", err.Error())
+		}
+		password, err := lib.AsString(auth[1])
+		if err != nil {
+			return fmt.Errorf("parsing auth password string: %s", err.Error())
+		}
+		req.SetBasicAuth(username, password)
+	}
+	return fmt.Errorf("expected two values for auth params tuple")
 }
 
 func setHeaders(req *http.Request, headers *skylark.Dict) error {
