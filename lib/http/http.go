@@ -36,7 +36,7 @@ func (m *Module) Struct() *skylarkstruct.Struct {
 	return skylarkstruct.FromStringDict(skylarkstruct.Default, m.StringDict())
 }
 
-// StringDict returns all module methdos in a skylark.StringDict
+// StringDict returns all module methods in a skylark.StringDict
 func (m *Module) StringDict() skylark.StringDict {
 	return skylark.StringDict{
 		"get":     skylark.NewBuiltin("get", m.reqMethod("get")),
