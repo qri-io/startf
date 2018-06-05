@@ -1,9 +1,13 @@
 package http
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/google/skylark"
 	"github.com/google/skylark/skylarkstruct"
@@ -35,75 +39,231 @@ func (m *Module) Struct() *skylarkstruct.Struct {
 // StringDict returns all module methdos in a skylark.StringDict
 func (m *Module) StringDict() skylark.StringDict {
 	return skylark.StringDict{
-		"get":      skylark.NewBuiltin("get", m.Get),
-		"get_json": skylark.NewBuiltin("get_json", m.GetJSON),
+		"get":     skylark.NewBuiltin("get", m.reqMethod("get")),
+		"put":     skylark.NewBuiltin("put", m.reqMethod("put")),
+		"post":    skylark.NewBuiltin("post", m.reqMethod("post")),
+		"delete":  skylark.NewBuiltin("delete", m.reqMethod("delete")),
+		"patch":   skylark.NewBuiltin("patch", m.reqMethod("patch")),
+		"options": skylark.NewBuiltin("options", m.reqMethod("options")),
 	}
 }
 
-// Get a URL
-func (m *Module) Get(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
-	var url skylark.Value
-	if err := skylark.UnpackPositionalArgs("get", args, kwargs, 1, &url); err != nil {
-		return nil, err
+// reqMethod is a factory function for generating skylark builtin functions for different http request methods
+func (m *Module) reqMethod(method string) func(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+	return func(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+		var (
+			urlv     skylark.String
+			params   = &skylark.Dict{}
+			headers  = &skylark.Dict{}
+			data     = &skylark.Dict{}
+			jsondata skylark.Value
+		)
+
+		if err := skylark.UnpackArgs(method, args, kwargs, "url", &urlv, "params?", &params, "headers", &headers, "data", &data, "json", &jsondata); err != nil {
+			return nil, err
+		}
+
+		rawurl, err := lib.AsString(urlv)
+		if err != nil {
+			return nil, err
+		}
+		if err = setQueryParams(&rawurl, params); err != nil {
+			return nil, err
+		}
+
+		req, err := http.NewRequest(method, rawurl, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		if err = setHeaders(req, headers); err != nil {
+			return nil, err
+		}
+		if err = setBody(req, data, jsondata); err != nil {
+			return nil, err
+		}
+
+		res, err := m.cli.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		r := &Response{*res}
+		return r.Struct(), nil
+	}
+}
+
+func setQueryParams(rawurl *string, params *skylark.Dict) error {
+	keys := params.Keys()
+	if len(keys) == 0 {
+		return nil
 	}
 
-	urlstr, err := lib.AsString(url)
+	u, err := url.Parse(*rawurl)
 	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequest("GET", urlstr, nil)
-	if err != nil {
-		return nil, err
+		return err
 	}
 
-	res, err := m.cli.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
+	q := u.Query()
+	for _, key := range keys {
+		keystr, err := lib.AsString(key)
+		if err != nil {
+			return err
+		}
 
-	data, err := ioutil.ReadAll(res.Body)
+		val, _, err := params.Get(key)
+		if err != nil {
+			return err
+		}
+		if val.Type() != "string" {
+			return fmt.Errorf("expected param value for key '%s' to be a string. got: '%s'", key, val.Type())
+		}
+		valstr, err := lib.AsString(val)
+		if err != nil {
+			return err
+		}
+
+		q.Set(keystr, valstr)
+	}
+
+	u.RawQuery = q.Encode()
+	*rawurl = u.String()
+	return nil
+}
+
+func setHeaders(req *http.Request, headers *skylark.Dict) error {
+	keys := headers.Keys()
+	if len(keys) == 0 {
+		return nil
+	}
+
+	for _, key := range keys {
+		keystr, err := lib.AsString(key)
+		if err != nil {
+			return err
+		}
+
+		val, _, err := headers.Get(key)
+		if err != nil {
+			return err
+		}
+		if val.Type() != "string" {
+			return fmt.Errorf("expected param value for key '%s' to be a string. got: '%s'", key, val.Type())
+		}
+		valstr, err := lib.AsString(val)
+		if err != nil {
+			return err
+		}
+
+		req.Header.Add(keystr, valstr)
+	}
+
+	return nil
+}
+
+func setBody(req *http.Request, data *skylark.Dict, jsondata skylark.Value) error {
+	if jsondata != nil && jsondata.String() != "" {
+		req.Header.Set("Content-Type", "application/json")
+
+		v, err := lib.Unmarshal(jsondata)
+		if err != nil {
+			return err
+		}
+		data, err := json.Marshal(v)
+		if err != nil {
+			return err
+		}
+		req.Body = ioutil.NopCloser(bytes.NewBuffer(data))
+	}
+
+	if data.Len() > 0 {
+		req.Header.Set("Content-Type", "multipart/form-data")
+
+		if req.Form == nil {
+			req.Form = url.Values{}
+		}
+		for _, key := range data.Keys() {
+			keystr, err := lib.AsString(key)
+			if err != nil {
+				return err
+			}
+
+			val, _, err := data.Get(key)
+			if err != nil {
+				return err
+			}
+			if val.Type() != "string" {
+				return fmt.Errorf("expected param value for key '%s' to be a string. got: '%s'", key, val.Type())
+			}
+			valstr, err := lib.AsString(val)
+			if err != nil {
+				return err
+			}
+
+			req.Form.Add(keystr, valstr)
+		}
+	}
+
+	return nil
+}
+
+// Response represents an HTTP response, wrapping a go http.Response with
+// skylark methods
+type Response struct {
+	http.Response
+}
+
+// Struct turns
+func (r *Response) Struct() *skylarkstruct.Struct {
+	return skylarkstruct.FromStringDict(skylarkstruct.Default, skylark.StringDict{
+		"url":         skylark.String(r.Request.URL.String()),
+		"status_code": skylark.MakeInt(r.StatusCode),
+		"headers":     r.HeadersDict(),
+		"encoding":    skylark.String(strings.Join(r.TransferEncoding, ",")),
+
+		"text":    skylark.NewBuiltin("text", r.Text),
+		"content": skylark.NewBuiltin("content", r.Text),
+
+		"json": skylark.NewBuiltin("json", r.JSON),
+	})
+}
+
+// HeadersDict flops
+func (r *Response) HeadersDict() *skylark.Dict {
+	d := new(skylark.Dict)
+	for key, vals := range r.Header {
+		d.Set(skylark.String(key), skylark.String(strings.Join(vals, ",")))
+	}
+	return d
+}
+
+// Text returns the raw data as a string
+func (r *Response) Text(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}
+	r.Body.Close()
+	// reset reader to allow multiple calls
+	r.Body = ioutil.NopCloser(bytes.NewReader(data))
 
 	return skylark.String(string(data)), nil
 }
 
-// GetJSON fetches a url & parses it as json, passing back a skylark value
-func (m *Module) GetJSON(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
-	var url skylark.Value
-	if err := skylark.UnpackPositionalArgs("get_json", args, kwargs, 1, &url); err != nil {
-		return nil, err
-	}
-
-	urlstr, err := lib.AsString(url)
-	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequest("GET", urlstr, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := m.cli.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
+// JSON attempts to parse the response body as JSON
+func (r *Response) JSON(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
 	var data interface{}
-	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
 		return nil, err
 	}
 
-	if m.ds.Meta == nil {
-		m.ds.Meta = &dataset.Meta{}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, err
 	}
-	cite := &dataset.Citation{
-		URL: urlstr,
-	}
-	m.ds.Meta.Citations = append(m.ds.Meta.Citations, cite)
-
+	r.Body.Close()
+	// reset reader to allow multiple calls
+	r.Body = ioutil.NopCloser(bytes.NewReader(body))
 	return lib.Marshal(data)
 }
