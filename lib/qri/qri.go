@@ -44,12 +44,12 @@ func (m *Module) AddAllMethods(sd skylark.StringDict) skylark.StringDict {
 // GetConfig returns transformation configuration details
 // TODO - supplying a string argument to qri.get_config('foo') should return the single config value instead of the whole map
 func (m *Module) GetConfig(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
-	if m.secrets == nil {
+	if m.ds.Transform.Config == nil {
 		return skylark.None, nil
 	}
 
 	var keyx skylark.Value
-	if err := skylark.UnpackPositionalArgs("get_secret", args, kwargs, 1, &keyx); err != nil {
+	if err := skylark.UnpackPositionalArgs("get_config", args, kwargs, 1, &keyx); err != nil {
 		return nil, err
 	}
 

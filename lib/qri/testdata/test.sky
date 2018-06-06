@@ -1,3 +1,3 @@
 load('qri.sky', 'qri')
 
-cfg = qri.get_config()
+foo = qri.get_config("foo")

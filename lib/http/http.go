@@ -148,6 +148,7 @@ func setAuth(req *http.Request, auth skylark.Tuple) error {
 			return fmt.Errorf("parsing auth password string: %s", err.Error())
 		}
 		req.SetBasicAuth(username, password)
+		return nil
 	}
 	return fmt.Errorf("expected two values for auth params tuple")
 }
