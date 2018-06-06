@@ -44,10 +44,25 @@ func (m *Module) AddAllMethods(sd skylark.StringDict) skylark.StringDict {
 // GetConfig returns transformation configuration details
 // TODO - supplying a string argument to qri.get_config('foo') should return the single config value instead of the whole map
 func (m *Module) GetConfig(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
-	if m.ds.Transform.Config == nil {
+	if m.secrets == nil {
 		return skylark.None, nil
 	}
-	return lib.Marshal(m.ds.Transform.Config)
+
+	var keyx skylark.Value
+	if err := skylark.UnpackPositionalArgs("get_secret", args, kwargs, 1, &keyx); err != nil {
+		return nil, err
+	}
+
+	if keyx.Type() != "string" {
+		return nil, fmt.Errorf("expected key to be a string")
+	}
+
+	key, err := lib.AsString(keyx)
+	if err != nil {
+		return nil, fmt.Errorf("parsing string key: %s", err.Error())
+	}
+
+	return lib.Marshal(m.ds.Transform.Config[key])
 }
 
 // GetBody returns the body of the dataset we're transforming
@@ -102,5 +117,19 @@ func (m *Module) GetSecret(thread *skylark.Thread, _ *skylark.Builtin, args skyl
 		return skylark.None, nil
 	}
 
-	return lib.Marshal(m.secrets)
+	var keyx skylark.Value
+	if err := skylark.UnpackPositionalArgs("get_secret", args, kwargs, 1, &keyx); err != nil {
+		return nil, err
+	}
+
+	if keyx.Type() != "string" {
+		return nil, fmt.Errorf("expected key to be a string")
+	}
+
+	key, err := lib.AsString(keyx)
+	if err != nil {
+		return nil, fmt.Errorf("parsing string key: %s", err.Error())
+	}
+
+	return lib.Marshal(m.secrets[key])
 }
