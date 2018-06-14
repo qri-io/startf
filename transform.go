@@ -15,6 +15,7 @@ import (
 	"github.com/qri-io/dataset/dsio"
 	"github.com/qri-io/skytf/lib"
 
+	skyhtml "github.com/qri-io/skytf/lib/html"
 	skyhttp "github.com/qri-io/skytf/lib/http"
 	skyqri "github.com/qri-io/skytf/lib/qri"
 )
@@ -189,6 +190,7 @@ func (t *transform) callDownloadFunc(thread *skylark.Thread, prev skylark.Iterab
 		"get_config": skylark.NewBuiltin("get_config", qm.GetConfig),
 		"get_secret": skylark.NewBuiltin("get_secret", qm.GetSecret),
 		"http":       skyhttp.NewModule(t.ds).Struct(),
+		"html":       skylark.NewBuiltin("html", skyhtml.NewDocument),
 	})
 
 	x, err := download.Call(thread, skylark.Tuple{qri}, nil)
@@ -210,6 +212,7 @@ func (t *transform) callTransformFunc(thread *skylark.Thread, prev skylark.Itera
 	qm := skyqri.NewModule(t.ds, t.secrets, t.infile)
 	qri := skylarkstruct.FromStringDict(skylarkstruct.Default, qm.AddAllMethods(skylark.StringDict{
 		"download": t.download,
+		"html":     skylark.NewBuiltin("html", skyhtml.NewDocument),
 	}))
 
 	x, err := transform.Call(thread, skylark.Tuple{qri}, nil)

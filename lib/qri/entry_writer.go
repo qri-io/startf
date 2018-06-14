@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/google/skylark"
-	"github.com/qri-io/skytf/lib"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
 	"github.com/qri-io/jsonschema"
+	"github.com/qri-io/skytf/lib"
 )
 
 // SkylarkEntryWriter creates a skylark.Value as an EntryWriter

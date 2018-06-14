@@ -1,6 +1,7 @@
 package qri
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/google/skylark"
@@ -8,6 +9,7 @@ import (
 	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
+	"github.com/qri-io/jsonschema"
 	"github.com/qri-io/skytf/lib"
 )
 
@@ -35,6 +37,7 @@ func (m *Module) Struct() *skylarkstruct.Struct {
 // AddAllMethods augments a skylark.StringDict with all qri builtins. Should really only be used during "transform" step
 func (m *Module) AddAllMethods(sd skylark.StringDict) skylark.StringDict {
 	sd["set_meta"] = skylark.NewBuiltin("set_meta", m.SetMeta)
+	sd["set_schema"] = skylark.NewBuiltin("set_schema", m.SetSchema)
 	sd["get_config"] = skylark.NewBuiltin("get_config", m.GetConfig)
 	sd["get_secret"] = skylark.NewBuiltin("get_secret", m.GetSecret)
 	sd["get_body"] = skylark.NewBuiltin("get_body", m.GetBody)
@@ -110,8 +113,26 @@ func (m *Module) SetMeta(thread *skylark.Thread, _ *skylark.Builtin, args skylar
 	return skylark.None, m.ds.Meta.Set(key, val)
 }
 
-// GetSecret fetches a dict of secrets
-// TODO - supplying a string argument to qri.get_secret('foo') should return the single secret value instead of the whole map
+// SetSchema sets the dataset schema field
+func (m *Module) SetSchema(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+	var valx skylark.Value
+	if err := skylark.UnpackPositionalArgs("set_schema", args, kwargs, 1, &valx); err != nil {
+		return nil, err
+	}
+
+	rs := &jsonschema.RootSchema{}
+	if err := json.Unmarshal([]byte(valx.String()), rs); err != nil {
+		return skylark.None, err
+	}
+
+	if m.ds.Structure == nil {
+		m.ds.Structure = &dataset.Structure{}
+	}
+	m.ds.Structure.Schema = rs
+	return skylark.None, nil
+}
+
+// GetSecret fetches a secret for a given string
 func (m *Module) GetSecret(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
 	if m.secrets == nil {
 		return skylark.None, nil
