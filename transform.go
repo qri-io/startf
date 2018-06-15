@@ -106,10 +106,12 @@ func ExecFile(ds *dataset.Dataset, filename string, infile cafs.File, opts ...fu
 	}
 
 	var data skylark.Iterable
+	skyhttp.EnableNtwk()
 	data, err = t.callDownloadFunc(thread, data)
 	if err != nil {
 		return nil, err
 	}
+	skyhttp.DisableNtwk()
 	t.download = data
 
 	data, err = t.callTransformFunc(thread, data)

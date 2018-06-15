@@ -19,6 +19,23 @@ import (
 // in skylark's load() function, eg: load('http.sky', 'http')
 const ModuleName = "http.sky"
 
+var (
+	// ntwkEnabled controls use of this entire module with enable/disable methods
+	ntwkEnabled = true
+	// ErrNtwkDisabled is returned whenever a network call is attempted but ntwkEnabled is false
+	ErrNtwkDisabled = fmt.Errorf("network use is disabled")
+)
+
+// EnableNtwk allows network calls
+func EnableNtwk() {
+	ntwkEnabled = true
+}
+
+// DisableNtwk prevents network calls from succeeding
+func DisableNtwk() {
+	ntwkEnabled = false
+}
+
 // NewModule creates an http Module
 func NewModule(ds *dataset.Dataset) *Module {
 	return &Module{ds: ds, cli: http.DefaultClient}
@@ -51,6 +68,10 @@ func (m *Module) StringDict() skylark.StringDict {
 // reqMethod is a factory function for generating skylark builtin functions for different http request methods
 func (m *Module) reqMethod(method string) func(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
 	return func(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+		if !ntwkEnabled {
+			return nil, ErrNtwkDisabled
+		}
+
 		var (
 			urlv     skylark.String
 			params   = &skylark.Dict{}
