@@ -3,7 +3,6 @@ package skytf
 import (
 	"fmt"
 	"io"
-	"strconv"
 
 	"github.com/google/skylark"
 	"github.com/qri-io/dataset"
@@ -16,22 +15,16 @@ type EntryReader struct {
 	i    int
 	st   *dataset.Structure
 	iter skylark.Iterator
-	keys []skylark.Value
+	data skylark.Value
 }
 
 // NewEntryReader creates a new Entry Reader
-func NewEntryReader(st *dataset.Structure, data skylark.Iterable) *EntryReader {
-	r := &EntryReader{
+func NewEntryReader(st *dataset.Structure, iter skylark.Iterable) *EntryReader {
+	return &EntryReader{
 		st:   st,
-		iter: data.Iterate(),
+		data: iter.(skylark.Value),
+		iter: iter.Iterate(),
 	}
-
-	// TODO - better base objet / map detection
-	if dict, ok := data.(*skylark.Dict); ok {
-		r.keys = dict.Keys()
-	}
-
-	return r
 }
 
 // Structure gives this reader's structure
@@ -41,26 +34,37 @@ func (r *EntryReader) Structure() *dataset.Structure {
 
 // ReadEntry reads one entry from the reader
 func (r *EntryReader) ReadEntry() (e dsio.Entry, err error) {
-
-	defer func() { r.i++ }()
-
-	var x skylark.Value
-	if !r.iter.Next(&x) {
+	// Read next element (key for object, value for array).
+	var next skylark.Value
+	if !r.iter.Next(&next) {
 		r.iter.Done()
 		return e, io.EOF
 	}
 
-	if r.keys != nil {
-		key, err := strconv.Unquote(r.keys[r.i].String())
-		if err != nil {
-			return e, err
-		}
-		e.Key = key
-	} else {
+	// Handle array entry.
+	if r.st.Schema.TopLevelType() == "array" {
 		e.Index = r.i
+		r.i++
+		e.Value, err = lib.Unmarshal(next)
+		if err != nil {
+			fmt.Printf("reading error: %s\n", err.Error())
+		}
+		return
 	}
 
-	e.Value, err = lib.Unmarshal(x)
+	// Handle object entry. Assume key is a string.
+	var ok bool
+	e.Key, ok = skylark.AsString(next)
+	if !ok {
+		fmt.Printf("key error: %s\n", next)
+	}
+	// Lookup the corresponding value for the key.
+	dict := r.data.(*skylark.Dict)
+	value, ok, err := dict.Get(next)
+	if err != nil {
+		fmt.Printf("reading error: %s\n", err.Error())
+	}
+	e.Value, err = lib.Unmarshal(value)
 	if err != nil {
 		fmt.Printf("reading error: %s\n", err.Error())
 	}
