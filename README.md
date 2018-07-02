@@ -39,21 +39,54 @@ Often the next steps are to install [qri](https://github.com/qri-io/qri), mess w
 
 ## Skylark Data Functions
 
-Data Functions are the core of a skylark transform script. Here's an example of a _very_ simple data function:
+Data Functions are the core of a skylark transform script. Here's an example of a simple data function that returns a constant result:
 
 ```python
 def transform(qri):
-  return(["hello","world"])
+  return ["hello","world"]
 ```
- 
+
+Here's something slightly more complicated that modifies a previous dataset by adding up the length of all of the elements:
+
+```python
+def transform(qri):
+  body = qri.get_body()
+  count = 0
+  for entry in body:
+    count += len(entry)
+  return [{"total": count}]
+```
+
 Skylark transformations have a few rules on top of skylark itself:
-* Data functions *always* return data
+* Data functions *always* return an array or dictionary/object, representing the new dataset body
 * When you define a data function, qri calls it for you
-* All tranform functions are optional (you don't _need_ to define them), _but_
+* All transform functions are optional (you don't _need_ to define them), _but_
 * A transformation must have at least one data function
 * Data functions are always called in the same order
 * Data functions often get a `qri` parameter that lets them do special things
 
+More docs on the provide API is coming soon.
 
+
+## Running a transform
+
+Let's say the above function is saved as `transform.sky`. First, create a configuration file (saved as `config.yaml`, for example) with at least the minimal structure:
+
+```
+name: dataset_name
+transform:
+  scriptpath: transform.sky
+  config:
+    org: qri-io
+    repo: frontend
+```
+
+Then invoke qri:
+
+```
+qri update --file=config.yaml me/dataset_name
+```
+
+If the script uses qri.get_body, there must be an existing version of the dataset already. Otherwise, if the dataset doesn't exist yet, and is being created from some other source, use `qri add` instead.
 
 ** **
