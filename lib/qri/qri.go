@@ -73,6 +73,9 @@ func (m *Module) GetBody(thread *skylark.Thread, _ *skylark.Builtin, args skylar
 	if m.infile == nil {
 		return skylark.None, fmt.Errorf("qri.get_body failed: no DataFile")
 	}
+	if m.ds == nil || m.ds.Structure == nil {
+		return skylark.None, fmt.Errorf("error: no structure for previous dataset")
+	}
 	rr, err := dsio.NewEntryReader(m.ds.Structure, m.infile)
 	if err != nil {
 		return skylark.None, fmt.Errorf("error allocating data reader: %s", err)
