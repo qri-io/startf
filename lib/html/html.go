@@ -59,6 +59,10 @@ func (s *Selection) Struct() *skylarkstruct.Struct {
 		"parents_until":     skylark.NewBuiltin("parents_until", s.ParentsUntil),
 		"siblings":          skylark.NewBuiltin("siblings", s.Siblings),
 		"text":              skylark.NewBuiltin("text", s.Text),
+		"first":             skylark.NewBuiltin("first", s.First),
+		"last":              skylark.NewBuiltin("last", s.Last),
+		"len":               skylark.NewBuiltin("len", s.Len),
+		"eq":                skylark.NewBuiltin("eq", s.Eq),
 	})
 }
 
@@ -95,6 +99,7 @@ func (s *Selection) Contents(thread *skylark.Thread, _ *skylark.Builtin, args sk
 	return NewSelectionStruct(s.sel.Contents()), nil
 }
 
+// // Each
 // func (s *Selection) Each(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
 // }
 
@@ -180,4 +185,30 @@ func (s *Selection) Siblings(thread *skylark.Thread, _ *skylark.Builtin, args sk
 // Text gets the combined text contents of each element in the set of matched elements, including their descendants
 func (s *Selection) Text(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
 	return skylark.String(s.sel.Text()), nil
+}
+
+// First gets the first element of the selection
+func (s *Selection) First(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+	return NewSelectionStruct(s.sel.First()), nil
+}
+
+// Last gets the last element of the selection
+func (s *Selection) Last(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+	return NewSelectionStruct(s.sel.Last()), nil
+}
+
+// Eq gets the element i of the selection
+func (s *Selection) Eq(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+	var x skylark.Int
+	if err := skylark.UnpackPositionalArgs("eq", args, kwargs, 1, &x); err != nil {
+		return nil, err
+	}
+
+	i, _ := x.Int64()
+	return NewSelectionStruct(s.sel.Eq(int(i))), nil
+}
+
+// Len returns the length of the nodes in the selection
+func (s *Selection) Len(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+	return skylark.MakeInt(len(s.sel.Nodes)), nil
 }
