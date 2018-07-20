@@ -34,6 +34,11 @@ assert.eq(doc.find("footer").children().attr("href"), "http://foo.com")
 assert.eq(doc.find("#D").children_filtered("#E").attr("data-name"), "foo")
 assert.eq(doc.find("#D").children().filter("h1").attr("data-name"), "foo")
 assert.eq(doc.has("#B").find("header").text(), "Header Tag")
+assert.eq(doc.find("#A").children().first().text(), "Header Tag")
+assert.eq(doc.find("#A").children().last().text(), "\n    link\n  ")
+assert.eq(doc.find("#A").children().eq(0).text(), "Header Tag")
+assert.eq(doc.find("#A").children().len(), 3)
+
 
 p = doc.find("p")
 assert.eq(p.parent().attr("class"), "le_div")
@@ -41,3 +46,4 @@ assert.eq(p.parents_until("body").attr("class"), "le_div")
 assert.eq(p.siblings().text(), "Heading One")
 assert.eq(p.get(), ("p",))
 assert.eq(p.get(0), "p")
+
