@@ -18,9 +18,10 @@ import (
 	skyhtml "github.com/qri-io/skytf/lib/html"
 	skyhttp "github.com/qri-io/skytf/lib/http"
 	skyqri "github.com/qri-io/skytf/lib/qri"
+	skyxlsx "github.com/qri-io/skytf/lib/xlsx"
 )
 
-// ExecOpts defines options for exection
+// ExecOpts defines options for execution
 type ExecOpts struct {
 	AllowFloat     bool                   // allow floating-point numbers
 	AllowSet       bool                   // allow set data type
@@ -193,6 +194,7 @@ func (t *transform) callDownloadFunc(thread *skylark.Thread, prev skylark.Iterab
 		"get_secret": skylark.NewBuiltin("get_secret", qm.GetSecret),
 		"http":       skyhttp.NewModule(t.ds).Struct(),
 		"html":       skylark.NewBuiltin("html", skyhtml.NewDocument),
+		"xlsx":       skyxlsx.NewModule().Struct(),
 	})
 
 	x, err := download.Call(thread, skylark.Tuple{qri}, nil)
