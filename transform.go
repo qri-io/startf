@@ -13,6 +13,7 @@ import (
 	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
+	"github.com/qri-io/qri/p2p"
 	"github.com/qri-io/skytf/lib"
 
 	skyhtml "github.com/qri-io/skytf/lib/html"
@@ -23,6 +24,7 @@ import (
 
 // ExecOpts defines options for execution
 type ExecOpts struct {
+	Node           *p2p.QriNode
 	AllowFloat     bool                   // allow floating-point numbers
 	AllowSet       bool                   // allow set data type
 	AllowLambda    bool                   // allow lambda expressions
@@ -31,10 +33,18 @@ type ExecOpts struct {
 	Globals        skylark.StringDict
 }
 
+// AddQriNodeOpt adds a qri node to execution options
+func AddQriNodeOpt(node *p2p.QriNode) func(o *ExecOpts) {
+	return func(o *ExecOpts) {
+		o.Node = node
+	}
+}
+
 // DefaultExecOpts applies default options to an ExecOpts pointer
 func DefaultExecOpts(o *ExecOpts) {
 	o.AllowFloat = true
 	o.AllowSet = true
+	o.AllowLambda = true
 	o.Globals = skylark.StringDict{}
 }
 
@@ -58,7 +68,7 @@ func newTransform(ds *dataset.Dataset, secrets map[string]interface{}, infile ca
 // ExecFile executes a transformation against a skylark file located at filepath, giving back an EntryReader of resulting data
 // ExecFile modifies the given dataset pointer. At bare minimum it will set transformation details, but skylark scripts can modify
 // many parts of the dataset pointer, including meta, structure, and transform
-func ExecFile(ds *dataset.Dataset, filename string, infile cafs.File, opts ...func(o *ExecOpts)) (dsio.EntryReader, error) {
+func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...func(o *ExecOpts)) (dsio.EntryReader, error) {
 	var (
 		scriptdata []byte
 		err        error
@@ -96,10 +106,17 @@ func ExecFile(ds *dataset.Dataset, filename string, infile cafs.File, opts ...fu
 	}
 	ds.Transform.Script = bytes.NewReader(scriptdata)
 
-	t := newTransform(ds, o.Secrets, infile)
+	t := newTransform(ds, o.Secrets, bodyFile)
 
 	thread := &skylark.Thread{Load: loader}
+	if o.Node != nil {
+		thread.Print = func(thread *skylark.Thread, msg string) {
+			// note we're ignoring a returned error here
+			_, _ = o.Node.LocalStreams.Out.Write([]byte(msg))
+		}
+	}
 
+	skyhttp.DisableNtwk()
 	// execute the transformation
 	t.globals, err = skylark.ExecFile(thread, filename, nil, nil)
 	if err != nil {
@@ -107,17 +124,14 @@ func ExecFile(ds *dataset.Dataset, filename string, infile cafs.File, opts ...fu
 	}
 
 	var data skylark.Iterable
-	skyhttp.EnableNtwk()
-	data, err = t.callDownloadFunc(thread, data)
+	funcs, err := t.transformFuncs()
 	if err != nil {
 		return nil, err
 	}
-	skyhttp.DisableNtwk()
-	t.download = data
-
-	data, err = t.callTransformFunc(thread, data)
-	if err != nil {
-		return nil, err
+	for _, fn := range funcs {
+		if data, err = fn(t, thread, data); err != nil {
+			return nil, err
+		}
 	}
 
 	sch := dataset.BaseSchemaArray
@@ -178,7 +192,36 @@ func confirmIterable(x skylark.Value) (skylark.Iterable, error) {
 	return v, nil
 }
 
-func (t *transform) callDownloadFunc(thread *skylark.Thread, prev skylark.Iterable) (data skylark.Iterable, err error) {
+func (t *transform) transformFuncs() (funcs []transformFunc, err error) {
+	cascade := []struct {
+		name string
+		fn   transformFunc
+	}{
+		{"download", callDownloadFunc},
+		{"transform", callTransformFunc},
+	}
+
+	for _, s := range cascade {
+		if _, err = t.globalFunc(s.name); err != nil {
+			if err == ErrNotDefined {
+				continue
+			}
+			return nil, err
+		}
+		funcs = append(funcs, s.fn)
+	}
+	if len(funcs) == 0 {
+		err = fmt.Errorf("no transform functions defined. please define at least either a 'download' or a 'transform' function")
+	}
+	return
+}
+
+type transformFunc func(t *transform, thread *skylark.Thread, prev skylark.Iterable) (data skylark.Iterable, err error)
+
+func callDownloadFunc(t *transform, thread *skylark.Thread, prev skylark.Iterable) (data skylark.Iterable, err error) {
+	skyhttp.EnableNtwk()
+	defer skyhttp.DisableNtwk()
+
 	var download *skylark.Function
 	if download, err = t.globalFunc("download"); err != nil {
 		if err == ErrNotDefined {
@@ -201,10 +244,16 @@ func (t *transform) callDownloadFunc(thread *skylark.Thread, prev skylark.Iterab
 	if err != nil {
 		return nil, err
 	}
-	return confirmIterable(x)
+	data, err = confirmIterable(x)
+	if err != nil {
+		return nil, err
+	}
+	t.download = data
+
+	return data, err
 }
 
-func (t *transform) callTransformFunc(thread *skylark.Thread, prev skylark.Iterable) (data skylark.Iterable, err error) {
+func callTransformFunc(t *transform, thread *skylark.Thread, prev skylark.Iterable) (data skylark.Iterable, err error) {
 	var transform *skylark.Function
 	if transform, err = t.globalFunc("transform"); err != nil {
 		if err == ErrNotDefined {
@@ -214,7 +263,7 @@ func (t *transform) callTransformFunc(thread *skylark.Thread, prev skylark.Itera
 	}
 
 	qm := skyqri.NewModule(t.ds, t.secrets, t.infile)
-	qri := skylarkstruct.FromStringDict(skylarkstruct.Default, qm.AddAllMethods(skylark.StringDict{
+	qri := skylarkstruct.FromStringDict(skylark.String("qri"), qm.AddAllMethods(skylark.StringDict{
 		"download": t.download,
 		"html":     skylark.NewBuiltin("html", skyhtml.NewDocument),
 	}))
