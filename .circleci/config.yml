@@ -26,6 +26,7 @@ jobs:
             github.com/qri-io/dataset
             github.com/qri-io/dataset/dsio
             github.com/PuerkitoBio/goquery
+            github.com/360EntSecGroup-Skylar/excelize
       - run: 
           name: Run Lint Tests
           command: golint -set_exit_status ./... 

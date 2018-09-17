@@ -256,7 +256,7 @@ type Response struct {
 	http.Response
 }
 
-// Struct turns
+// Struct turns a response into a *skylark.Struct
 func (r *Response) Struct() *skylarkstruct.Struct {
 	return skylarkstruct.FromStringDict(skylarkstruct.Default, skylark.StringDict{
 		"url":         skylark.String(r.Request.URL.String()),
