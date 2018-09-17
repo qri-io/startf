@@ -15,6 +15,7 @@ import (
 	"github.com/qri-io/dataset/dsio"
 	"github.com/qri-io/qri/p2p"
 	"github.com/qri-io/skytf/lib"
+	"github.com/qri-io/starlib"
 
 	skyhtml "github.com/qri-io/skytf/lib/html"
 	skyhttp "github.com/qri-io/skytf/lib/http"
@@ -108,7 +109,7 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 
 	t := newTransform(ds, o.Secrets, bodyFile)
 
-	thread := &skylark.Thread{Load: loader}
+	thread := &skylark.Thread{Load: starlib.Loader}
 	if o.Node != nil {
 		thread.Print = func(thread *skylark.Thread, msg string) {
 			// note we're ignoring a returned error here
@@ -120,6 +121,9 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 	// execute the transformation
 	t.globals, err = skylark.ExecFile(thread, filename, nil, nil)
 	if err != nil {
+		if evalErr, ok := err.(*skylark.EvalError); ok {
+			fmt.Println(evalErr.Backtrace())
+		}
 		return nil, err
 	}
 
@@ -162,11 +166,6 @@ func Error(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwarg
 		return nil, fmt.Errorf("transform error: %s", str)
 	}
 	return nil, fmt.Errorf("tranform errored (no valid message provided)")
-}
-
-// loader is currently not in use
-func loader(thread *skylark.Thread, module string) (dict skylark.StringDict, err error) {
-	return nil, fmt.Errorf("load is not permitted when executing a qri transformation")
 }
 
 // ErrNotDefined is for when a skylark value is not defined or does not exist
