@@ -1,5 +1,0 @@
-load('qri.sky', 'qri')
-
-foo = qri.get_config("foo")
-
-qri.set_schema({ "type" : "object" })

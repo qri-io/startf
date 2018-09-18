@@ -1,4 +1,4 @@
-package qri
+package ds
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
 	"github.com/qri-io/jsonschema"
-	"github.com/qri-io/skytf/lib"
+	"github.com/qri-io/starlib/util"
 )
 
 // SkylarkEntryWriter creates a skylark.Value as an EntryWriter
@@ -21,18 +21,18 @@ type SkylarkEntryWriter struct {
 func (w *SkylarkEntryWriter) WriteEntry(ent dsio.Entry) error {
 	if w.IsDict {
 		dict := w.Object.(*skylark.Dict)
-		key, err := lib.Marshal(ent.Key)
+		key, err := util.Marshal(ent.Key)
 		if err != nil {
 			return err
 		}
-		val, err := lib.Marshal(ent.Value)
+		val, err := util.Marshal(ent.Value)
 		if err != nil {
 			return err
 		}
 		dict.Set(key, val)
 	} else {
 		list := w.Object.(*skylark.List)
-		val, err := lib.Marshal(ent.Value)
+		val, err := util.Marshal(ent.Value)
 		if err != nil {
 			return err
 		}
