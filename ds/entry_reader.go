@@ -1,4 +1,4 @@
-package skytf
+package ds
 
 import (
 	"fmt"

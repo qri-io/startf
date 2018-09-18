@@ -24,6 +24,7 @@ jobs:
             github.com/google/skylark/resolve
             github.com/qri-io/dataset
             github.com/qri-io/dataset/dsio
+            github.com/qri-io/ioes
             github.com/PuerkitoBio/goquery
             github.com/360EntSecGroup-Skylar/excelize
       - run: 
