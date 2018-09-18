@@ -4,6 +4,7 @@ package ds
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 
 	"github.com/google/skylark"
 	"github.com/google/skylark/skylarkstruct"
@@ -41,6 +42,7 @@ func (d *Dataset) Methods() *skylarkstruct.Struct {
 	return skylarkstruct.FromStringDict(skylarkstruct.Default, skylark.StringDict{
 		"set_meta":   skylark.NewBuiltin("set_meta", d.SetMeta),
 		"set_schema": skylark.NewBuiltin("set_schema", d.SetSchema),
+		"get_body":   skylark.NewBuiltin("get_body", d.GetBody),
 		"set_body":   skylark.NewBuiltin("set_body", d.SetBody),
 	})
 }
@@ -66,6 +68,10 @@ func (d *Dataset) SetMeta(thread *skylark.Thread, _ *skylark.Builtin, args skyla
 		return nil, err
 	}
 
+	if d.ds.Meta == nil {
+		d.ds.Meta = &dataset.Meta{}
+	}
+
 	return skylark.None, d.ds.Meta.Set(key, val)
 }
 
@@ -82,7 +88,9 @@ func (d *Dataset) SetSchema(thread *skylark.Thread, _ *skylark.Builtin, args sky
 	}
 
 	if d.ds.Structure == nil {
-		d.ds.Structure = &dataset.Structure{}
+		d.ds.Structure = &dataset.Structure{
+			Format: dataset.JSONDataFormat,
+		}
 	}
 	d.ds.Structure.Schema = rs
 	return skylark.None, nil
@@ -95,12 +103,20 @@ func (d *Dataset) GetBody(thread *skylark.Thread, _ *skylark.Builtin, args skyla
 	}
 
 	if d.infile == nil {
-		return skylark.None, fmt.Errorf("qri.get_body failed: no DataFile")
+		return skylark.None, fmt.Errorf("no DataFile")
 	}
-	if d.ds == nil || d.ds.Structure == nil {
+	if d.ds.Structure == nil {
 		return skylark.None, fmt.Errorf("error: no structure for previous dataset")
 	}
-	rr, err := dsio.NewEntryReader(d.ds.Structure, d.infile)
+
+	// TODO - this is bad. make not bad.
+	data, err := ioutil.ReadAll(d.infile)
+	if err != nil {
+		return skylark.None, err
+	}
+	d.infile = cafs.NewMemfileBytes("data.json", data)
+
+	rr, err := dsio.NewEntryReader(d.ds.Structure, cafs.NewMemfileBytes("data.json", data))
 	if err != nil {
 		return skylark.None, fmt.Errorf("error allocating data reader: %s", err)
 	}
@@ -113,6 +129,10 @@ func (d *Dataset) GetBody(thread *skylark.Thread, _ *skylark.Builtin, args skyla
 	if err != nil {
 		return skylark.None, err
 	}
+	if err = w.Close(); err != nil {
+		return skylark.None, err
+	}
+
 	if iter, ok := w.Value().(skylark.Iterable); ok {
 		d.body = iter
 		return d.body, nil
@@ -146,7 +166,9 @@ func (d *Dataset) SetBody(thread *skylark.Thread, _ *skylark.Builtin, args skyla
 	}
 
 	r := NewEntryReader(st, data)
-	dsio.Copy(r, w)
+	if err := dsio.Copy(r, w); err != nil {
+		return skylark.None, err
+	}
 	if err := w.Close(); err != nil {
 		return skylark.None, err
 	}
