@@ -21,14 +21,14 @@ func TestExecFile(t *testing.T) {
 		t.Error("expected transform")
 	}
 
-	er, err := dsio.NewEntryReader(ds.Structure, body)
+	entryReader, err := dsio.NewEntryReader(ds.Structure, body)
 	if err != nil {
 		t.Errorf("couldn't create entry reader from returned dataset & body file: %s", err.Error())
 		return
 	}
 
 	i := 0
-	dsio.EachEntry(er, func(_ int, x dsio.Entry, e error) error {
+	dsio.EachEntry(entryReader, func(_ int, x dsio.Entry, e error) error {
 		if e != nil {
 			t.Errorf("entry %d iteration error: %s", i, e.Error())
 		}

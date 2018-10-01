@@ -152,13 +152,12 @@ func (d *Dataset) SetBody(thread *skylark.Thread, _ *skylark.Builtin, args skyla
 	}
 
 	if raw {
-		fmt.Println("raw data y'all")
 		if str, ok := data.(skylark.String); ok {
 			d.infile = cafs.NewMemfileBytes("data", []byte(string(str)))
-		} else {
-			return skylark.None, fmt.Errorf("expected raw data for body to be a string")
+			return skylark.None, nil
 		}
-		return skylark.None, nil
+
+		return skylark.None, fmt.Errorf("expected raw data for body to be a string")
 	}
 
 	iter, ok := data.(skylark.Iterable)
