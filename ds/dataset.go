@@ -142,9 +142,27 @@ func (d *Dataset) GetBody(thread *skylark.Thread, _ *skylark.Builtin, args skyla
 
 // SetBody assigns the dataset body
 func (d *Dataset) SetBody(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
-	var data skylark.Iterable
-	if err := skylark.UnpackPositionalArgs("set_body", args, kwargs, 1, &data); err != nil {
+	var (
+		data skylark.Value
+		raw  skylark.Bool
+	)
+
+	if err := skylark.UnpackArgs("set_body", args, kwargs, "data", &data, "raw?", &raw); err != nil {
 		return skylark.None, err
+	}
+
+	if raw {
+		if str, ok := data.(skylark.String); ok {
+			d.infile = cafs.NewMemfileBytes("data", []byte(string(str)))
+			return skylark.None, nil
+		}
+
+		return skylark.None, fmt.Errorf("expected raw data for body to be a string")
+	}
+
+	iter, ok := data.(skylark.Iterable)
+	if !ok {
+		return skylark.None, fmt.Errorf("expected body to be iterable")
 	}
 
 	sch := dataset.BaseSchemaArray
@@ -162,10 +180,10 @@ func (d *Dataset) SetBody(thread *skylark.Thread, _ *skylark.Builtin, args skyla
 	}
 	w, err := dsio.NewEntryBuffer(st)
 	if err != nil {
-		return nil, err
+		return skylark.None, err
 	}
 
-	r := NewEntryReader(st, data)
+	r := NewEntryReader(st, iter)
 	if err := dsio.Copy(r, w); err != nil {
 		return skylark.None, err
 	}
