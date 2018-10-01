@@ -12,13 +12,19 @@ import (
 
 func TestExecFile(t *testing.T) {
 	ds := &dataset.Dataset{}
-	er, err := ExecFile(ds, "testdata/tf.sky", nil)
+	body, err := ExecFile(ds, "testdata/tf.sky", nil)
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
 	if ds.Transform == nil {
 		t.Error("expected transform")
+	}
+
+	er, err := dsio.NewEntryReader(ds.Structure, body)
+	if err != nil {
+		t.Errorf("couldn't create entry reader from returned dataset & body file: %s", err.Error())
+		return
 	}
 
 	i := 0

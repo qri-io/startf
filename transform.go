@@ -11,7 +11,6 @@ import (
 	"github.com/google/skylark/resolve"
 	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
-	"github.com/qri-io/dataset/dsio"
 	"github.com/qri-io/qri/p2p"
 	skyds "github.com/qri-io/skytf/ds"
 	skyqri "github.com/qri-io/skytf/qri"
@@ -67,7 +66,7 @@ func newTransform(node *p2p.QriNode, ds *dataset.Dataset, secrets map[string]int
 // ExecFile executes a transformation against a skylark file located at filepath, giving back an EntryReader of resulting data
 // ExecFile modifies the given dataset pointer. At bare minimum it will set transformation details, but skylark scripts can modify
 // many parts of the dataset pointer, including meta, structure, and transform
-func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...func(o *ExecOpts)) (dsio.EntryReader, error) {
+func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...func(o *ExecOpts)) (cafs.File, error) {
 	var (
 		scriptdata []byte
 		err        error
@@ -125,6 +124,9 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 	}
 
 	// set infile to be an empty array for now
+	// TODO - this default assumption may mess with things. we shoulda attempt to
+	// infer more from the input dataset & make smarter assumption about empty data
+	// this implies that all datasets must have a body, which isn't true :/
 	t.infile = cafs.NewMemfileBytes("data.json", []byte("[]"))
 
 	funcs, err := t.transformFuncs()
@@ -141,7 +143,7 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 		}
 	}
 
-	return dsio.NewEntryReader(t.ds.Structure, t.infile)
+	return t.infile, nil
 }
 
 // Error halts program execution with an error
