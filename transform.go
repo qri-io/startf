@@ -15,7 +15,6 @@ import (
 	skyds "github.com/qri-io/skytf/ds"
 	skyqri "github.com/qri-io/skytf/qri"
 	"github.com/qri-io/starlib"
-	"github.com/qri-io/starlib/util"
 )
 
 // ExecOpts defines options for execution
@@ -152,10 +151,8 @@ func Error(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwarg
 	if err := skylark.UnpackPositionalArgs("error", args, kwargs, 1, &msg); err != nil {
 		return nil, err
 	}
-	if str, err := util.AsString(msg); err == nil {
-		return nil, fmt.Errorf("transform error: %s", str)
-	}
-	return nil, fmt.Errorf("tranform errored (no valid message provided)")
+
+	return nil, fmt.Errorf("transform error: %s", msg)
 }
 
 // ErrNotDefined is for when a skylark value is not defined or does not exist

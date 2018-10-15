@@ -58,10 +58,7 @@ func (d *Dataset) SetMeta(thread *skylark.Thread, _ *skylark.Builtin, args skyla
 		return nil, fmt.Errorf("expected key to be a string")
 	}
 
-	key, err := util.AsString(keyx)
-	if err != nil {
-		return nil, fmt.Errorf("parsing string key: %s", err.Error())
-	}
+	key := string(keyx.(skylark.String))
 
 	val, err := util.Unmarshal(valx)
 	if err != nil {

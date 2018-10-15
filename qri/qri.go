@@ -168,21 +168,12 @@ func (m *Module) GetSecret(thread *skylark.Thread, _ *skylark.Builtin, args skyl
 		return skylark.None, nil
 	}
 
-	var keyx skylark.Value
-	if err := skylark.UnpackPositionalArgs("get_secret", args, kwargs, 1, &keyx); err != nil {
+	var key skylark.String
+	if err := skylark.UnpackPositionalArgs("get_secret", args, kwargs, 1, &key); err != nil {
 		return nil, err
 	}
 
-	if keyx.Type() != "string" {
-		return nil, fmt.Errorf("expected key to be a string")
-	}
-
-	key, err := util.AsString(keyx)
-	if err != nil {
-		return nil, fmt.Errorf("parsing string key: %s", err.Error())
-	}
-
-	return util.Marshal(m.secrets[key])
+	return util.Marshal(m.secrets[string(key)])
 }
 
 // GetConfig returns transformation configuration details
@@ -192,19 +183,10 @@ func (m *Module) GetConfig(thread *skylark.Thread, _ *skylark.Builtin, args skyl
 		return skylark.None, nil
 	}
 
-	var keyx skylark.Value
-	if err := skylark.UnpackPositionalArgs("get_config", args, kwargs, 1, &keyx); err != nil {
+	var key skylark.String
+	if err := skylark.UnpackPositionalArgs("get_config", args, kwargs, 1, &key); err != nil {
 		return nil, err
 	}
 
-	if keyx.Type() != "string" {
-		return nil, fmt.Errorf("expected key to be a string")
-	}
-
-	key, err := util.AsString(keyx)
-	if err != nil {
-		return nil, fmt.Errorf("parsing string key: %s", err.Error())
-	}
-
-	return util.Marshal(m.ds.Transform.Config[key])
+	return util.Marshal(m.ds.Transform.Config[string(key)])
 }
