@@ -12,6 +12,7 @@ import (
 	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/qri/p2p"
+	skyctx "github.com/qri-io/skytf/context"
 	skyds "github.com/qri-io/skytf/ds"
 	skyqri "github.com/qri-io/skytf/qri"
 	"github.com/qri-io/starlib"
@@ -46,6 +47,7 @@ func DefaultExecOpts(o *ExecOpts) {
 type transform struct {
 	node    *p2p.QriNode
 	ds      *dataset.Dataset
+	skyqri  *skyqri.Module
 	globals skylark.StringDict
 	secrets map[string]interface{}
 	infile  cafs.File
@@ -57,6 +59,7 @@ func newTransform(node *p2p.QriNode, ds *dataset.Dataset, secrets map[string]int
 	return &transform{
 		node:    node,
 		ds:      ds,
+		skyqri:  skyqri.NewModule(node, ds, secrets, infile),
 		secrets: secrets,
 		infile:  infile,
 	}
@@ -113,6 +116,8 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 		}
 	}
 
+	ctx := skyctx.NewContext()
+
 	// execute the transformation
 	t.globals, err = skylark.ExecFile(thread, filename, nil, nil)
 	if err != nil {
@@ -128,21 +133,27 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 	// this implies that all datasets must have a body, which isn't true :/
 	t.infile = cafs.NewMemfileBytes("data.json", []byte("[]"))
 
-	funcs, err := t.transformFuncs()
+	funcs, err := t.specialFuncs()
 	if err != nil {
 		return nil, err
 	}
 
-	for _, fn := range funcs {
-		if err = fn(t, thread); err != nil {
+	for name, fn := range funcs {
+		val, err := fn(t, thread, ctx)
+
+		if err != nil {
 			if evalErr, ok := err.(*skylark.EvalError); ok {
 				return nil, fmt.Errorf(evalErr.Backtrace())
 			}
 			return nil, err
 		}
+
+		ctx.Results[name] = val
 	}
 
-	return t.infile, nil
+	err = callTransformFunc(t, thread, ctx)
+
+	return t.infile, err
 }
 
 // Error halts program execution with an error
@@ -158,7 +169,7 @@ func Error(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwarg
 // ErrNotDefined is for when a skylark value is not defined or does not exist
 var ErrNotDefined = fmt.Errorf("not defined")
 
-// globalFunc checks global function is defined
+// globalFunc checks if a global function is defined
 func (t *transform) globalFunc(name string) (fn *skylark.Function, err error) {
 	x, ok := t.globals[name]
 	if !ok {
@@ -178,34 +189,30 @@ func confirmIterable(x skylark.Value) (skylark.Iterable, error) {
 	return v, nil
 }
 
-func (t *transform) transformFuncs() (funcs []transformFunc, err error) {
-	cascade := []struct {
-		name string
-		fn   transformFunc
-	}{
-		{"download", callDownloadFunc},
-		{"transform", callTransformFunc},
+func (t *transform) specialFuncs() (defined map[string]specialFunc, err error) {
+	specialFuncs := map[string]specialFunc{
+		"download": callDownloadFunc,
 	}
 
-	for _, s := range cascade {
-		if _, err = t.globalFunc(s.name); err != nil {
+	defined = map[string]specialFunc{}
+
+	for name, fn := range specialFuncs {
+		if _, err = t.globalFunc(name); err != nil {
 			if err == ErrNotDefined {
 				err = nil
 				continue
 			}
 			return nil, err
 		}
-		funcs = append(funcs, s.fn)
+		defined[name] = fn
 	}
-	if len(funcs) == 0 {
-		err = fmt.Errorf("no transform functions defined. please define at least either a 'download' or a 'transform' function")
-	}
+
 	return
 }
 
-type transformFunc func(t *transform, thread *skylark.Thread) (err error)
+type specialFunc func(t *transform, thread *skylark.Thread, ctx *skyctx.Context) (result skylark.Value, err error)
 
-func callDownloadFunc(t *transform, thread *skylark.Thread) (err error) {
+func callDownloadFunc(t *transform, thread *skylark.Thread, ctx *skyctx.Context) (result skylark.Value, err error) {
 	httpGuard.EnableNtwk()
 	defer httpGuard.DisableNtwk()
 	t.print("📡 running download...\n")
@@ -213,20 +220,15 @@ func callDownloadFunc(t *transform, thread *skylark.Thread) (err error) {
 	var download *skylark.Function
 	if download, err = t.globalFunc("download"); err != nil {
 		if err == ErrNotDefined {
-			return nil
+			return skylark.None, nil
 		}
-		return err
-	}
-	d := skyds.NewDataset(t.ds, t.infile)
-	if _, err = download.Call(thread, skylark.Tuple{d.Methods()}, nil); err != nil {
-		return err
+		return skylark.None, err
 	}
 
-	t.infile = d.Infile()
-	return nil
+	return download.Call(thread, skylark.Tuple{ctx.Struct()}, nil)
 }
 
-func callTransformFunc(t *transform, thread *skylark.Thread) (err error) {
+func callTransformFunc(t *transform, thread *skylark.Thread, ctx *skyctx.Context) (err error) {
 	var transform *skylark.Function
 	if transform, err = t.globalFunc("transform"); err != nil {
 		if err == ErrNotDefined {
@@ -237,7 +239,7 @@ func callTransformFunc(t *transform, thread *skylark.Thread) (err error) {
 	t.print("⚙️  running transform...\n")
 
 	d := skyds.NewDataset(t.ds, t.infile)
-	if _, err = transform.Call(thread, skylark.Tuple{d.Methods()}, nil); err != nil {
+	if _, err = transform.Call(thread, skylark.Tuple{d.Methods(), ctx.Struct()}, nil); err != nil {
 		return err
 	}
 	t.infile = d.Infile()
@@ -259,7 +261,7 @@ func (t *transform) print(msg string) {
 
 func (t *transform) Loader(thread *skylark.Thread, module string) (dict skylark.StringDict, err error) {
 	if module == skyqri.ModuleName {
-		return skyqri.NewModule(t.node, t.ds, t.secrets, t.infile).Namespace(), nil
+		return t.skyqri.Namespace(), nil
 	}
 	return starlib.Loader(thread, module)
 }
