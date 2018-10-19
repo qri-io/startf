@@ -6,4 +6,4 @@ def download(ctx):
   return res.json()['foo']
 
 def transform(ds, ctx):
-  ds.set_body(ctx.results.download)
+  ds.set_body(ctx.download)

@@ -148,7 +148,7 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 			return nil, err
 		}
 
-		ctx.Results[name] = val
+		ctx.SetResult(name, val)
 	}
 
 	err = callTransformFunc(t, thread, ctx)

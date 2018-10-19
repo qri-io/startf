@@ -1,0 +1,6 @@
+# predeclared globals for test: ctx, dl_ctx 
+load("assert.sky", "assert")
+
+ctx.set("foo", "bar")
+assert.eq(ctx.get("foo"), "bar")
+assert.eq(dl_ctx.download, True)
