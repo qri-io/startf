@@ -49,19 +49,17 @@ type transform struct {
 	ds      *dataset.Dataset
 	skyqri  *skyqri.Module
 	globals skylark.StringDict
-	secrets map[string]interface{}
 	infile  cafs.File
 
 	download skylark.Iterable
 }
 
-func newTransform(node *p2p.QriNode, ds *dataset.Dataset, secrets map[string]interface{}, infile cafs.File) *transform {
+func newTransform(node *p2p.QriNode, ds *dataset.Dataset, infile cafs.File) *transform {
 	return &transform{
-		node:    node,
-		ds:      ds,
-		skyqri:  skyqri.NewModule(node, ds, secrets, infile),
-		secrets: secrets,
-		infile:  infile,
+		node:   node,
+		ds:     ds,
+		skyqri: skyqri.NewModule(node, ds),
+		infile: infile,
 	}
 }
 
@@ -106,7 +104,7 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 	}
 	ds.Transform.Script = bytes.NewReader(scriptdata)
 
-	t := newTransform(o.Node, ds, o.Secrets, bodyFile)
+	t := newTransform(o.Node, ds, bodyFile)
 
 	thread := &skylark.Thread{Load: t.Loader}
 	if o.Node != nil {
@@ -116,7 +114,7 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 		}
 	}
 
-	ctx := skyctx.NewContext()
+	ctx := skyctx.NewContext(ds.Transform.Config, o.Secrets)
 
 	// execute the transformation
 	t.globals, err = skylark.ExecFile(thread, filename, nil, nil)
