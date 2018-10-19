@@ -7,7 +7,6 @@ import (
 	"github.com/google/skylark"
 	"github.com/google/skylark/skylarkstruct"
 	"github.com/ipfs/go-datastore"
-	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsfs"
 	"github.com/qri-io/dataset/dsio"
@@ -21,16 +20,14 @@ import (
 const ModuleName = "qri.sky"
 
 // NewModule creates a new qri module instance
-func NewModule(node *p2p.QriNode, ds *dataset.Dataset, secrets map[string]interface{}, infile cafs.File) *Module {
-	return &Module{node: node, ds: ds, secrets: secrets, infile: infile}
+func NewModule(node *p2p.QriNode, ds *dataset.Dataset) *Module {
+	return &Module{node: node, ds: ds}
 }
 
 // Module encapsulates state for a qri skylark module
 type Module struct {
-	node    *p2p.QriNode
-	ds      *dataset.Dataset
-	secrets map[string]interface{}
-	infile  cafs.File
+	node *p2p.QriNode
+	ds   *dataset.Dataset
 }
 
 // Namespace produces this module's exported namespace
@@ -47,8 +44,6 @@ func (m *Module) Struct() *skylarkstruct.Struct {
 
 // AddAllMethods augments a skylark.StringDict with all qri builtins. Should really only be used during "transform" step
 func (m *Module) AddAllMethods(sd skylark.StringDict) skylark.StringDict {
-	sd["get_config"] = skylark.NewBuiltin("get_config", m.GetConfig)
-	sd["get_secret"] = skylark.NewBuiltin("get_secret", m.GetSecret)
 	sd["list_datasets"] = skylark.NewBuiltin("list_dataset", m.ListDatasets)
 	sd["load_dataset_body"] = skylark.NewBuiltin("load_dataset_body", m.LoadDatasetBody)
 	sd["load_dataset_head"] = skylark.NewBuiltin("load_dataset_head", m.LoadDatasetHead)
@@ -160,51 +155,4 @@ func (m *Module) loadDsHead(refstr string) (*dataset.Dataset, error) {
 	m.ds.Transform.Resources[ref.Path] = &dataset.TransformResource{Path: ref.String()}
 
 	return ds, nil
-}
-
-// GetSecret fetches a secret for a given string
-func (m *Module) GetSecret(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
-	if m.secrets == nil {
-		return skylark.None, nil
-	}
-
-	var keyx skylark.Value
-	if err := skylark.UnpackPositionalArgs("get_secret", args, kwargs, 1, &keyx); err != nil {
-		return nil, err
-	}
-
-	if keyx.Type() != "string" {
-		return nil, fmt.Errorf("expected key to be a string")
-	}
-
-	key, err := util.AsString(keyx)
-	if err != nil {
-		return nil, fmt.Errorf("parsing string key: %s", err.Error())
-	}
-
-	return util.Marshal(m.secrets[key])
-}
-
-// GetConfig returns transformation configuration details
-// TODO - supplying a string argument to qri.get_config('foo') should return the single config value instead of the whole map
-func (m *Module) GetConfig(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
-	if m.ds.Transform.Config == nil {
-		return skylark.None, nil
-	}
-
-	var keyx skylark.Value
-	if err := skylark.UnpackPositionalArgs("get_config", args, kwargs, 1, &keyx); err != nil {
-		return nil, err
-	}
-
-	if keyx.Type() != "string" {
-		return nil, fmt.Errorf("expected key to be a string")
-	}
-
-	key, err := util.AsString(keyx)
-	if err != nil {
-		return nil, fmt.Errorf("parsing string key: %s", err.Error())
-	}
-
-	return util.Marshal(m.ds.Transform.Config[key])
 }

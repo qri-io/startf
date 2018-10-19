@@ -1,6 +1,9 @@
 load("http.sky", "http")
+load("qri.sky", "qri")
 
-def download(ds):
+def download(ctx):
   res = http.get(test_server_url)
-  ds.set_body(res.json()['foo'])
-  return ds
+  return res.json()['foo']
+
+def transform(ds, ctx):
+  ds.set_body(ctx.download)
