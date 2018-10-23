@@ -1,18 +1,18 @@
-package skytf
+package startf
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/google/skylark"
+	starlark "github.com/google/skylark"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
 )
 
 func TestExecFile(t *testing.T) {
 	ds := &dataset.Dataset{}
-	body, err := ExecFile(ds, "testdata/tf.sky", nil)
+	body, err := ExecFile(ds, "testdata/tf.star", nil)
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -48,8 +48,8 @@ func TestExecFile2(t *testing.T) {
 	}))
 
 	ds := &dataset.Dataset{}
-	_, err := ExecFile(ds, "testdata/fetch.sky", nil, func(o *ExecOpts) {
-		o.Globals["test_server_url"] = skylark.String(s.URL)
+	_, err := ExecFile(ds, "testdata/fetch.star", nil, func(o *ExecOpts) {
+		o.Globals["test_server_url"] = starlark.String(s.URL)
 	})
 
 	if err != nil {

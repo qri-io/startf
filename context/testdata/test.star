@@ -1,5 +1,5 @@
 # predeclared globals for test: ctx, dl_ctx 
-load("assert.sky", "assert")
+load("assert.star", "assert")
 
 assert.eq(ctx.get_config("foo"), "bar")
 assert.eq(ctx.get_secret("baz"), "bat")

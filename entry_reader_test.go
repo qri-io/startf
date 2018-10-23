@@ -1,11 +1,11 @@
-package skytf
+package startf
 
 import (
 	"fmt"
 	"log"
 	"testing"
 
-	"github.com/google/skylark"
+	starlark "github.com/google/skylark"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
 )
@@ -14,11 +14,11 @@ import (
 var _ dsio.EntryReader = (*EntryReader)(nil)
 
 func TestEntryReaderSimpleList(t *testing.T) {
-	var elems *skylark.List
-	elems = skylark.NewList([]skylark.Value{})
-	elems.Append(skylark.MakeInt(1))
-	elems.Append(skylark.MakeInt(2))
-	elems.Append(skylark.MakeInt(3))
+	var elems *starlark.List
+	elems = starlark.NewList([]starlark.Value{})
+	elems.Append(starlark.MakeInt(1))
+	elems.Append(starlark.MakeInt(2))
+	elems.Append(starlark.MakeInt(3))
 	st := &dataset.Structure{
 		Schema: dataset.BaseSchemaArray,
 	}
@@ -54,11 +54,11 @@ func TestEntryReaderSimpleList(t *testing.T) {
 }
 
 func TestEntryReaderSimpleDict(t *testing.T) {
-	var elems *skylark.Dict
-	elems = &skylark.Dict{}
-	elems.Set(skylark.String("a"), skylark.MakeInt(1))
-	elems.Set(skylark.String("b"), skylark.MakeInt(2))
-	elems.Set(skylark.String("c"), skylark.MakeInt(3))
+	var elems *starlark.Dict
+	elems = &starlark.Dict{}
+	elems.Set(starlark.String("a"), starlark.MakeInt(1))
+	elems.Set(starlark.String("b"), starlark.MakeInt(2))
+	elems.Set(starlark.String("c"), starlark.MakeInt(3))
 	st := &dataset.Structure{
 		Schema: dataset.BaseSchemaObject,
 	}

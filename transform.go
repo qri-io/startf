@@ -1,21 +1,21 @@
-// Package skytf implements dataset transformations using the skylark programming dialect
-// For more info on skylark check github.com/google/skylark
-package skytf
+// Package startf implements dataset transformations using the starlark programming dialect
+// For more info on starlark check github.com/google/starlark
+package startf
 
 import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
 
-	"github.com/google/skylark"
+	starlark "github.com/google/skylark"
 	"github.com/google/skylark/resolve"
 	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/qri/p2p"
-	skyctx "github.com/qri-io/skytf/context"
-	skyds "github.com/qri-io/skytf/ds"
-	skyqri "github.com/qri-io/skytf/qri"
 	"github.com/qri-io/starlib"
+	skyctx "github.com/qri-io/startf/context"
+	skyds "github.com/qri-io/startf/ds"
+	skyqri "github.com/qri-io/startf/qri"
 )
 
 // ExecOpts defines options for execution
@@ -26,7 +26,7 @@ type ExecOpts struct {
 	AllowLambda    bool                   // allow lambda expressions
 	AllowNestedDef bool                   // allow nested def statements
 	Secrets        map[string]interface{} // passed-in secrets (eg: API keys)
-	Globals        skylark.StringDict
+	Globals        starlark.StringDict
 }
 
 // AddQriNodeOpt adds a qri node to execution options
@@ -41,17 +41,17 @@ func DefaultExecOpts(o *ExecOpts) {
 	o.AllowFloat = true
 	o.AllowSet = true
 	o.AllowLambda = true
-	o.Globals = skylark.StringDict{}
+	o.Globals = starlark.StringDict{}
 }
 
 type transform struct {
 	node    *p2p.QriNode
 	ds      *dataset.Dataset
 	skyqri  *skyqri.Module
-	globals skylark.StringDict
+	globals starlark.StringDict
 	infile  cafs.File
 
-	download skylark.Iterable
+	download starlark.Iterable
 }
 
 func newTransform(node *p2p.QriNode, ds *dataset.Dataset, infile cafs.File) *transform {
@@ -63,8 +63,8 @@ func newTransform(node *p2p.QriNode, ds *dataset.Dataset, infile cafs.File) *tra
 	}
 }
 
-// ExecFile executes a transformation against a skylark file located at filepath, giving back an EntryReader of resulting data
-// ExecFile modifies the given dataset pointer. At bare minimum it will set transformation details, but skylark scripts can modify
+// ExecFile executes a transformation against a starlark file located at filepath, giving back an EntryReader of resulting data
+// ExecFile modifies the given dataset pointer. At bare minimum it will set transformation details, but starlark scripts can modify
 // many parts of the dataset pointer, including meta, structure, and transform
 func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...func(o *ExecOpts)) (cafs.File, error) {
 	var (
@@ -84,17 +84,17 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 	resolve.AllowLambda = o.AllowLambda
 	resolve.AllowNestedDef = o.AllowNestedDef
 
-	// add error func to skylark environment
-	skylark.Universe["error"] = skylark.NewBuiltin("error", Error)
+	// add error func to starlark environment
+	starlark.Universe["error"] = starlark.NewBuiltin("error", Error)
 	for key, val := range o.Globals {
-		skylark.Universe[key] = val
+		starlark.Universe[key] = val
 	}
 
 	// set transform details
 	if ds.Transform == nil {
 		ds.Transform = &dataset.Transform{}
 	}
-	ds.Transform.Syntax = "skylark"
+	ds.Transform.Syntax = "starlark"
 	ds.Transform.SyntaxVersion = Version
 
 	// create a reader of script bytes
@@ -106,9 +106,9 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 
 	t := newTransform(o.Node, ds, bodyFile)
 
-	thread := &skylark.Thread{Load: t.Loader}
+	thread := &starlark.Thread{Load: t.Loader}
 	if o.Node != nil {
-		thread.Print = func(thread *skylark.Thread, msg string) {
+		thread.Print = func(thread *starlark.Thread, msg string) {
 			// note we're ignoring a returned error here
 			_, _ = o.Node.LocalStreams.Out.Write([]byte(msg))
 		}
@@ -117,9 +117,9 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 	ctx := skyctx.NewContext(ds.Transform.Config, o.Secrets)
 
 	// execute the transformation
-	t.globals, err = skylark.ExecFile(thread, filename, nil, nil)
+	t.globals, err = starlark.ExecFile(thread, filename, nil, nil)
 	if err != nil {
-		if evalErr, ok := err.(*skylark.EvalError); ok {
+		if evalErr, ok := err.(*starlark.EvalError); ok {
 			return nil, fmt.Errorf(evalErr.Backtrace())
 		}
 		return nil, err
@@ -140,7 +140,7 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 		val, err := fn(t, thread, ctx)
 
 		if err != nil {
-			if evalErr, ok := err.(*skylark.EvalError); ok {
+			if evalErr, ok := err.(*starlark.EvalError); ok {
 				return nil, fmt.Errorf(evalErr.Backtrace())
 			}
 			return nil, err
@@ -155,20 +155,20 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 }
 
 // Error halts program execution with an error
-func Error(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
-	var msg skylark.Value
-	if err := skylark.UnpackPositionalArgs("error", args, kwargs, 1, &msg); err != nil {
+func Error(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var msg starlark.Value
+	if err := starlark.UnpackPositionalArgs("error", args, kwargs, 1, &msg); err != nil {
 		return nil, err
 	}
 
 	return nil, fmt.Errorf("transform error: %s", msg)
 }
 
-// ErrNotDefined is for when a skylark value is not defined or does not exist
+// ErrNotDefined is for when a starlark value is not defined or does not exist
 var ErrNotDefined = fmt.Errorf("not defined")
 
 // globalFunc checks if a global function is defined
-func (t *transform) globalFunc(name string) (fn *skylark.Function, err error) {
+func (t *transform) globalFunc(name string) (fn *starlark.Function, err error) {
 	x, ok := t.globals[name]
 	if !ok {
 		return fn, ErrNotDefined
@@ -176,11 +176,11 @@ func (t *transform) globalFunc(name string) (fn *skylark.Function, err error) {
 	if x.Type() != "function" {
 		return fn, fmt.Errorf("'%s' is not a function", name)
 	}
-	return x.(*skylark.Function), nil
+	return x.(*starlark.Function), nil
 }
 
-func confirmIterable(x skylark.Value) (skylark.Iterable, error) {
-	v, ok := x.(skylark.Iterable)
+func confirmIterable(x starlark.Value) (starlark.Iterable, error) {
+	v, ok := x.(starlark.Iterable)
 	if !ok {
 		return nil, fmt.Errorf("did not return structured data")
 	}
@@ -208,26 +208,26 @@ func (t *transform) specialFuncs() (defined map[string]specialFunc, err error) {
 	return
 }
 
-type specialFunc func(t *transform, thread *skylark.Thread, ctx *skyctx.Context) (result skylark.Value, err error)
+type specialFunc func(t *transform, thread *starlark.Thread, ctx *skyctx.Context) (result starlark.Value, err error)
 
-func callDownloadFunc(t *transform, thread *skylark.Thread, ctx *skyctx.Context) (result skylark.Value, err error) {
+func callDownloadFunc(t *transform, thread *starlark.Thread, ctx *skyctx.Context) (result starlark.Value, err error) {
 	httpGuard.EnableNtwk()
 	defer httpGuard.DisableNtwk()
 	t.print("📡 running download...\n")
 
-	var download *skylark.Function
+	var download *starlark.Function
 	if download, err = t.globalFunc("download"); err != nil {
 		if err == ErrNotDefined {
-			return skylark.None, nil
+			return starlark.None, nil
 		}
-		return skylark.None, err
+		return starlark.None, err
 	}
 
-	return download.Call(thread, skylark.Tuple{ctx.Struct()}, nil)
+	return starlark.Call(thread, download, starlark.Tuple{ctx.Struct()}, nil)
 }
 
-func callTransformFunc(t *transform, thread *skylark.Thread, ctx *skyctx.Context) (err error) {
-	var transform *skylark.Function
+func callTransformFunc(t *transform, thread *starlark.Thread, ctx *skyctx.Context) (err error) {
+	var transform *starlark.Function
 	if transform, err = t.globalFunc("transform"); err != nil {
 		if err == ErrNotDefined {
 			return nil
@@ -237,7 +237,7 @@ func callTransformFunc(t *transform, thread *skylark.Thread, ctx *skyctx.Context
 	t.print("⚙️  running transform...\n")
 
 	d := skyds.NewDataset(t.ds, t.infile)
-	if _, err = transform.Call(thread, skylark.Tuple{d.Methods(), ctx.Struct()}, nil); err != nil {
+	if _, err = starlark.Call(thread, transform, starlark.Tuple{d.Methods(), ctx.Struct()}, nil); err != nil {
 		return err
 	}
 	t.infile = d.Infile()
@@ -257,7 +257,7 @@ func (t *transform) print(msg string) {
 	}
 }
 
-func (t *transform) Loader(thread *skylark.Thread, module string) (dict skylark.StringDict, err error) {
+func (t *transform) Loader(thread *starlark.Thread, module string) (dict starlark.StringDict, err error) {
 	if module == skyqri.ModuleName {
 		return t.skyqri.Namespace(), nil
 	}

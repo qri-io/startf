@@ -15,7 +15,7 @@ func TestContext(t *testing.T) {
 	dlCtx.SetResult("download", starlark.Bool(true))
 
 	// Execute test file
-	_, err := starlark.ExecFile(thread, "testdata/test.sky", nil, starlark.StringDict{
+	_, err := starlark.ExecFile(thread, "testdata/test.star", nil, starlark.StringDict{
 		"ctx": NewContext(
 			map[string]interface{}{"foo": "bar"},
 			map[string]interface{}{"baz": "bat"},
@@ -76,7 +76,7 @@ func TestMissingSecrets(t *testing.T) {
 func newLoader() func(thread *starlark.Thread, module string) (starlark.StringDict, error) {
 	return func(thread *starlark.Thread, module string) (starlark.StringDict, error) {
 		switch module {
-		case "assert.sky":
+		case "assert.star":
 			return starlarktest.LoadAssertModule()
 		}
 
