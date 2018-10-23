@@ -223,7 +223,7 @@ func callDownloadFunc(t *transform, thread *starlark.Thread, ctx *skyctx.Context
 		return starlark.None, err
 	}
 
-	return download.Call(thread, starlark.Tuple{ctx.Struct()}, nil)
+	return starlark.Call(thread, download, starlark.Tuple{ctx.Struct()}, nil)
 }
 
 func callTransformFunc(t *transform, thread *starlark.Thread, ctx *skyctx.Context) (err error) {
@@ -237,7 +237,7 @@ func callTransformFunc(t *transform, thread *starlark.Thread, ctx *skyctx.Contex
 	t.print("⚙️  running transform...\n")
 
 	d := skyds.NewDataset(t.ds, t.infile)
-	if _, err = transform.Call(thread, starlark.Tuple{d.Methods(), ctx.Struct()}, nil); err != nil {
+	if _, err = starlark.Call(thread, transform, starlark.Tuple{d.Methods(), ctx.Struct()}, nil); err != nil {
 		return err
 	}
 	t.infile = d.Infile()
