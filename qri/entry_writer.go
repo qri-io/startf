@@ -3,24 +3,24 @@ package qri
 import (
 	"fmt"
 
-	"github.com/google/skylark"
+	starlark "github.com/google/skylark"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
 	"github.com/qri-io/jsonschema"
 	"github.com/qri-io/starlib/util"
 )
 
-// SkylarkEntryWriter creates a skylark.Value as an EntryWriter
+// SkylarkEntryWriter creates a starlark.Value as an EntryWriter
 type SkylarkEntryWriter struct {
 	IsDict bool
 	Struct *dataset.Structure
-	Object skylark.Value
+	Object starlark.Value
 }
 
-// WriteEntry adds an entry to the underlying skylark.Value
+// WriteEntry adds an entry to the underlying starlark.Value
 func (w *SkylarkEntryWriter) WriteEntry(ent dsio.Entry) error {
 	if w.IsDict {
-		dict := w.Object.(*skylark.Dict)
+		dict := w.Object.(*starlark.Dict)
 		key, err := util.Marshal(ent.Key)
 		if err != nil {
 			return err
@@ -31,7 +31,7 @@ func (w *SkylarkEntryWriter) WriteEntry(ent dsio.Entry) error {
 		}
 		dict.Set(key, val)
 	} else {
-		list := w.Object.(*skylark.List)
+		list := w.Object.(*starlark.List)
 		val, err := util.Marshal(ent.Value)
 		if err != nil {
 			return err
@@ -51,8 +51,8 @@ func (w *SkylarkEntryWriter) Close() error {
 	return nil
 }
 
-// Value returns the underlying skylark.Value
-func (w *SkylarkEntryWriter) Value() skylark.Value {
+// Value returns the underlying starlark.Value
+func (w *SkylarkEntryWriter) Value() starlark.Value {
 	return w.Object
 }
 
@@ -63,9 +63,9 @@ func NewSkylarkEntryWriter(st *dataset.Structure) (*SkylarkEntryWriter, error) {
 		return nil, err
 	}
 	if mode == smObject {
-		return &SkylarkEntryWriter{IsDict: true, Struct: st, Object: &skylark.Dict{}}, nil
+		return &SkylarkEntryWriter{IsDict: true, Struct: st, Object: &starlark.Dict{}}, nil
 	}
-	return &SkylarkEntryWriter{IsDict: false, Struct: st, Object: &skylark.List{}}, nil
+	return &SkylarkEntryWriter{IsDict: false, Struct: st, Object: &starlark.List{}}, nil
 }
 
 // TODO: Refactor everything below this so that jsonschema returns this in a simple way

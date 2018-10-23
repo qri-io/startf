@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/google/skylark"
-	"github.com/google/skylark/skylarkstruct"
+	starlark "github.com/google/skylark"
+	starlarkstruct "github.com/google/skylark/skylarkstruct"
 	"github.com/ipfs/go-datastore"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsfs"
@@ -16,115 +16,115 @@ import (
 )
 
 // ModuleName defines the expected name for this module when used
-// in skylark's load() function, eg: load('qri.sky', 'qri')
-const ModuleName = "qri.sky"
+// in starlark's load() function, eg: load('qri.star', 'qri')
+const ModuleName = "qri.star"
 
 // NewModule creates a new qri module instance
 func NewModule(node *p2p.QriNode, ds *dataset.Dataset) *Module {
 	return &Module{node: node, ds: ds}
 }
 
-// Module encapsulates state for a qri skylark module
+// Module encapsulates state for a qri starlark module
 type Module struct {
 	node *p2p.QriNode
 	ds   *dataset.Dataset
 }
 
 // Namespace produces this module's exported namespace
-func (m *Module) Namespace() skylark.StringDict {
-	return skylark.StringDict{
+func (m *Module) Namespace() starlark.StringDict {
+	return starlark.StringDict{
 		"qri": m.Struct(),
 	}
 }
 
-// Struct returns this module's methods as a skylark Struct
-func (m *Module) Struct() *skylarkstruct.Struct {
-	return skylarkstruct.FromStringDict(skylarkstruct.Default, m.AddAllMethods(skylark.StringDict{}))
+// Struct returns this module's methods as a starlark Struct
+func (m *Module) Struct() *starlarkstruct.Struct {
+	return starlarkstruct.FromStringDict(starlarkstruct.Default, m.AddAllMethods(starlark.StringDict{}))
 }
 
-// AddAllMethods augments a skylark.StringDict with all qri builtins. Should really only be used during "transform" step
-func (m *Module) AddAllMethods(sd skylark.StringDict) skylark.StringDict {
-	sd["list_datasets"] = skylark.NewBuiltin("list_dataset", m.ListDatasets)
-	sd["load_dataset_body"] = skylark.NewBuiltin("load_dataset_body", m.LoadDatasetBody)
-	sd["load_dataset_head"] = skylark.NewBuiltin("load_dataset_head", m.LoadDatasetHead)
+// AddAllMethods augments a starlark.StringDict with all qri builtins. Should really only be used during "transform" step
+func (m *Module) AddAllMethods(sd starlark.StringDict) starlark.StringDict {
+	sd["list_datasets"] = starlark.NewBuiltin("list_dataset", m.ListDatasets)
+	sd["load_dataset_body"] = starlark.NewBuiltin("load_dataset_body", m.LoadDatasetBody)
+	sd["load_dataset_head"] = starlark.NewBuiltin("load_dataset_head", m.LoadDatasetHead)
 	return sd
 }
 
 // ListDatasets shows current local datasets
-func (m *Module) ListDatasets(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
+func (m *Module) ListDatasets(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if m.node == nil {
-		return skylark.None, fmt.Errorf("no qri node available to list datasets")
+		return starlark.None, fmt.Errorf("no qri node available to list datasets")
 	}
 
 	refs, err := m.node.Repo.References(1000, 0)
 	if err != nil {
-		return skylark.None, fmt.Errorf("error getting dataset list: %s", err.Error())
+		return starlark.None, fmt.Errorf("error getting dataset list: %s", err.Error())
 	}
 
-	l := &skylark.List{}
+	l := &starlark.List{}
 	for _, ref := range refs {
-		l.Append(skylark.String(ref.String()))
+		l.Append(starlark.String(ref.String()))
 	}
 	return l, nil
 }
 
 // LoadDatasetHead grabs everything except the dataset head
-func (m *Module) LoadDatasetHead(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
-	var refstr skylark.String
-	if err := skylark.UnpackArgs("load_dataset_head", args, kwargs, "ref", &refstr); err != nil {
-		return skylark.None, err
+func (m *Module) LoadDatasetHead(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var refstr starlark.String
+	if err := starlark.UnpackArgs("load_dataset_head", args, kwargs, "ref", &refstr); err != nil {
+		return starlark.None, err
 	}
 
 	ds, err := m.loadDsHead(string(refstr))
 	if err != nil {
-		return skylark.None, err
+		return starlark.None, err
 	}
 
 	data, err := json.Marshal(ds.Encode())
 	if err != nil {
-		return skylark.None, err
+		return starlark.None, err
 	}
 	dse := map[string]interface{}{}
 	if err := json.Unmarshal(data, &dse); err != nil {
-		return skylark.None, err
+		return starlark.None, err
 	}
 
 	return util.Marshal(dse)
 }
 
 // LoadDatasetBody loads a datasets body data
-func (m *Module) LoadDatasetBody(thread *skylark.Thread, _ *skylark.Builtin, args skylark.Tuple, kwargs []skylark.Tuple) (skylark.Value, error) {
-	var refstr skylark.String
-	if err := skylark.UnpackArgs("load_dataset_body", args, kwargs, "ref", &refstr); err != nil {
-		return skylark.None, err
+func (m *Module) LoadDatasetBody(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var refstr starlark.String
+	if err := starlark.UnpackArgs("load_dataset_body", args, kwargs, "ref", &refstr); err != nil {
+		return starlark.None, err
 	}
 
 	if m.node == nil {
-		return skylark.None, fmt.Errorf("no qri node available to load dataset: %s", string(refstr))
+		return starlark.None, fmt.Errorf("no qri node available to load dataset: %s", string(refstr))
 	}
 
 	ds, err := m.loadDsHead(string(refstr))
 	if err != nil {
-		return skylark.None, err
+		return starlark.None, err
 	}
 
 	f, err := m.node.Repo.Store().Get(datastore.NewKey(ds.BodyPath))
 	if err != nil {
-		return skylark.None, err
+		return starlark.None, err
 	}
 
 	rr, err := dsio.NewEntryReader(ds.Structure, f)
 	if err != nil {
-		return skylark.None, fmt.Errorf("error allocating data reader: %s", err)
+		return starlark.None, fmt.Errorf("error allocating data reader: %s", err)
 	}
 	w, err := NewSkylarkEntryWriter(ds.Structure)
 	if err != nil {
-		return skylark.None, fmt.Errorf("error allocating skylark entry writer: %s", err)
+		return starlark.None, fmt.Errorf("error allocating starlark entry writer: %s", err)
 	}
 
 	err = dsio.Copy(rr, w)
 	if err != nil {
-		return skylark.None, err
+		return starlark.None, err
 	}
 
 	return w.Value(), err
