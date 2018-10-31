@@ -1,18 +1,31 @@
 package startf
 
 import (
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	starlark "github.com/google/skylark"
+	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
 )
 
+func scriptFile(t *testing.T, path string) *cafs.Memfile {
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return cafs.NewMemfileBytes(path, data)
+}
+
 func TestExecFile(t *testing.T) {
 	ds := &dataset.Dataset{}
-	body, err := ExecFile(ds, "testdata/tf.star", nil)
+	script := scriptFile(t, "testdata/tf.star")
+
+	body, err := ExecFile(ds, script, nil)
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -48,7 +61,8 @@ func TestExecFile2(t *testing.T) {
 	}))
 
 	ds := &dataset.Dataset{}
-	_, err := ExecFile(ds, "testdata/fetch.star", nil, func(o *ExecOpts) {
+	script := scriptFile(t, "testdata/fetch.star")
+	_, err := ExecFile(ds, script, nil, func(o *ExecOpts) {
 		o.Globals["test_server_url"] = starlark.String(s.URL)
 	})
 

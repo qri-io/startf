@@ -5,7 +5,7 @@ package startf
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 
 	starlark "github.com/google/skylark"
 	"github.com/google/skylark/resolve"
@@ -66,11 +66,8 @@ func newTransform(node *p2p.QriNode, ds *dataset.Dataset, infile cafs.File) *tra
 // ExecFile executes a transformation against a starlark file located at filepath, giving back an EntryReader of resulting data
 // ExecFile modifies the given dataset pointer. At bare minimum it will set transformation details, but starlark scripts can modify
 // many parts of the dataset pointer, including meta, structure, and transform
-func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...func(o *ExecOpts)) (cafs.File, error) {
-	var (
-		scriptdata []byte
-		err        error
-	)
+func ExecFile(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o *ExecOpts)) (cafs.File, error) {
+	var err error
 
 	o := &ExecOpts{}
 	DefaultExecOpts(o)
@@ -97,14 +94,15 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 	ds.Transform.Syntax = "starlark"
 	ds.Transform.SyntaxVersion = Version
 
-	// create a reader of script bytes
-	scriptdata, err = ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	ds.Transform.Script = bytes.NewReader(scriptdata)
+	// "tee" the script reader to avoid losing script data, as starlark.ExecFile
+	// reads, data will be copied to buf, which is re-set to the transform script
+	buf := &bytes.Buffer{}
+	ds.Transform.Script = buf
+	tr := io.TeeReader(script, buf)
+	pipeScript := cafs.NewMemfileReader(script.FileName(), tr)
 
 	t := newTransform(o.Node, ds, bodyFile)
+	ctx := skyctx.NewContext(ds.Transform.Config, o.Secrets)
 
 	thread := &starlark.Thread{Load: t.Loader}
 	if o.Node != nil {
@@ -114,10 +112,8 @@ func ExecFile(ds *dataset.Dataset, filename string, bodyFile cafs.File, opts ...
 		}
 	}
 
-	ctx := skyctx.NewContext(ds.Transform.Config, o.Secrets)
-
 	// execute the transformation
-	t.globals, err = starlark.ExecFile(thread, filename, nil, nil)
+	t.globals, err = starlark.ExecFile(thread, pipeScript.FileName(), pipeScript, nil)
 	if err != nil {
 		if evalErr, ok := err.(*starlark.EvalError); ok {
 			return nil, fmt.Errorf(evalErr.Backtrace())
