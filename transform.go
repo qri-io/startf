@@ -63,7 +63,7 @@ func newTransform(node *p2p.QriNode, ds *dataset.Dataset, infile cafs.File) *tra
 	}
 }
 
-// ExecFile executes a transformation against a starlark file located at filepath, giving back an EntryReader of resulting data
+// ExecFile executes a transformation against a starlark script file, giving back an EntryReader of resulting data
 // ExecFile modifies the given dataset pointer. At bare minimum it will set transformation details, but starlark scripts can modify
 // many parts of the dataset pointer, including meta, structure, and transform
 func ExecFile(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o *ExecOpts)) (cafs.File, error) {
