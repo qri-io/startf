@@ -15,16 +15,22 @@ import (
 	"github.com/qri-io/starlib/util"
 )
 
+// MutateFieldCheck is a function to check if a dataset field can be mutated
+// before mutating a field, dataset will call MutateFieldCheck with as specific
+// a path as possible and bail if an error is returned
+type MutateFieldCheck func(path ...string) error
+
 // Dataset is a qri dataset starlark type
 type Dataset struct {
 	ds     *dataset.Dataset
 	infile cafs.File
 	body   starlark.Iterable
+	check  MutateFieldCheck
 }
 
 // NewDataset creates a dataset object
-func NewDataset(ds *dataset.Dataset, infile cafs.File) *Dataset {
-	return &Dataset{ds: ds, infile: infile}
+func NewDataset(ds *dataset.Dataset, infile cafs.File, check MutateFieldCheck) *Dataset {
+	return &Dataset{ds: ds, infile: infile, check: check}
 }
 
 // Dataset returns the underlying dataset
@@ -47,18 +53,29 @@ func (d *Dataset) Methods() *starlarkstruct.Struct {
 	})
 }
 
+// checkField runs the check function if one is defined
+func (d *Dataset) checkField(path ...string) error {
+	if d.check != nil {
+		return d.check(path...)
+	}
+	return nil
+}
+
 // SetMeta sets a dataset meta field
 func (d *Dataset) SetMeta(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var keyx, valx starlark.Value
+	var (
+		keyx starlark.String
+		valx starlark.Value
+	)
 	if err := starlark.UnpackPositionalArgs("set_meta", args, kwargs, 2, &keyx, &valx); err != nil {
 		return nil, err
 	}
 
-	if keyx.Type() != "string" {
-		return nil, fmt.Errorf("expected key to be a string")
-	}
+	key := keyx.String()
 
-	key := string(keyx.(starlark.String))
+	if err := d.checkField("meta", "key"); err != nil {
+		return starlark.None, err
+	}
 
 	val, err := util.Unmarshal(valx)
 	if err != nil {
@@ -77,6 +94,10 @@ func (d *Dataset) SetSchema(thread *starlark.Thread, _ *starlark.Builtin, args s
 	var valx starlark.Value
 	if err := starlark.UnpackPositionalArgs("set_schema", args, kwargs, 1, &valx); err != nil {
 		return nil, err
+	}
+
+	if err := d.checkField("structure", "schema"); err != nil {
+		return starlark.None, err
 	}
 
 	rs := &jsonschema.RootSchema{}
@@ -145,6 +166,10 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 	)
 
 	if err := starlark.UnpackArgs("set_body", args, kwargs, "data", &data, "raw?", &raw); err != nil {
+		return starlark.None, err
+	}
+
+	if err := d.checkField("body"); err != nil {
 		return starlark.None, err
 	}
 
