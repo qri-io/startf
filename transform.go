@@ -20,19 +20,27 @@ import (
 
 // ExecOpts defines options for execution
 type ExecOpts struct {
-	Node           *p2p.QriNode
-	AllowFloat     bool                   // allow floating-point numbers
-	AllowSet       bool                   // allow set data type
-	AllowLambda    bool                   // allow lambda expressions
-	AllowNestedDef bool                   // allow nested def statements
-	Secrets        map[string]interface{} // passed-in secrets (eg: API keys)
-	Globals        starlark.StringDict
+	Node             *p2p.QriNode
+	AllowFloat       bool                   // allow floating-point numbers
+	AllowSet         bool                   // allow set data type
+	AllowLambda      bool                   // allow lambda expressions
+	AllowNestedDef   bool                   // allow nested def statements
+	Secrets          map[string]interface{} // passed-in secrets (eg: API keys)
+	Globals          starlark.StringDict
+	MutateFieldCheck func(path ...string) error
 }
 
 // AddQriNodeOpt adds a qri node to execution options
 func AddQriNodeOpt(node *p2p.QriNode) func(o *ExecOpts) {
 	return func(o *ExecOpts) {
 		o.Node = node
+	}
+}
+
+// AddMutateFieldCheck provides a checkFunc to ExecScript
+func AddMutateFieldCheck(check func(path ...string) error) func(o *ExecOpts) {
+	return func(o *ExecOpts) {
+		o.MutateFieldCheck = check
 	}
 }
 
@@ -45,28 +53,20 @@ func DefaultExecOpts(o *ExecOpts) {
 }
 
 type transform struct {
-	node    *p2p.QriNode
-	ds      *dataset.Dataset
-	skyqri  *skyqri.Module
-	globals starlark.StringDict
-	infile  cafs.File
+	node      *p2p.QriNode
+	ds        *dataset.Dataset
+	skyqri    *skyqri.Module
+	checkFunc func(path ...string) error
+	globals   starlark.StringDict
+	infile    cafs.File
 
 	download starlark.Iterable
 }
 
-func newTransform(node *p2p.QriNode, ds *dataset.Dataset, infile cafs.File) *transform {
-	return &transform{
-		node:   node,
-		ds:     ds,
-		skyqri: skyqri.NewModule(node, ds),
-		infile: infile,
-	}
-}
-
-// ExecFile executes a transformation against a starlark script file, giving back an EntryReader of resulting data
-// ExecFile modifies the given dataset pointer. At bare minimum it will set transformation details, but starlark scripts can modify
+// ExecScript executes a transformation against a starlark script file, giving back an EntryReader of resulting data
+// ExecScript modifies the given dataset pointer. At bare minimum it will set transformation details, but starlark scripts can modify
 // many parts of the dataset pointer, including meta, structure, and transform
-func ExecFile(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o *ExecOpts)) (cafs.File, error) {
+func ExecScript(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o *ExecOpts)) (cafs.File, error) {
 	var err error
 
 	o := &ExecOpts{}
@@ -101,7 +101,14 @@ func ExecFile(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o *E
 	tr := io.TeeReader(script, buf)
 	pipeScript := cafs.NewMemfileReader(script.FileName(), tr)
 
-	t := newTransform(o.Node, ds, bodyFile)
+	t := &transform{
+		node:      o.Node,
+		ds:        ds,
+		skyqri:    skyqri.NewModule(o.Node, ds),
+		infile:    bodyFile,
+		checkFunc: o.MutateFieldCheck,
+	}
+
 	ctx := skyctx.NewContext(ds.Transform.Config, o.Secrets)
 
 	thread := &starlark.Thread{Load: t.Loader}
@@ -232,7 +239,7 @@ func callTransformFunc(t *transform, thread *starlark.Thread, ctx *skyctx.Contex
 	}
 	t.print("⚙️  running transform...\n")
 
-	d := skyds.NewDataset(t.ds, t.infile)
+	d := skyds.NewDataset(t.ds, t.infile, t.checkFunc)
 	if _, err = starlark.Call(thread, transform, starlark.Tuple{d.Methods(), ctx.Struct()}, nil); err != nil {
 		return err
 	}

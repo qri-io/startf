@@ -21,11 +21,11 @@ func scriptFile(t *testing.T, path string) *cafs.Memfile {
 	return cafs.NewMemfileBytes(path, data)
 }
 
-func TestExecFile(t *testing.T) {
+func TestExecScript(t *testing.T) {
 	ds := &dataset.Dataset{}
 	script := scriptFile(t, "testdata/tf.star")
 
-	body, err := ExecFile(ds, script, nil)
+	body, err := ExecScript(ds, script, nil)
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -54,7 +54,7 @@ func TestExecFile(t *testing.T) {
 	}
 }
 
-func TestExecFile2(t *testing.T) {
+func TestExecScript2(t *testing.T) {
 
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"foo":["bar","baz","bat"]}`))
@@ -62,7 +62,7 @@ func TestExecFile2(t *testing.T) {
 
 	ds := &dataset.Dataset{}
 	script := scriptFile(t, "testdata/fetch.star")
-	_, err := ExecFile(ds, script, nil, func(o *ExecOpts) {
+	_, err := ExecScript(ds, script, nil, func(o *ExecOpts) {
 		o.Globals["test_server_url"] = starlark.String(s.URL)
 	})
 
