@@ -128,12 +128,6 @@ func ExecScript(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o 
 		return nil, err
 	}
 
-	// set infile to be an empty array for now
-	// TODO - this default assumption may mess with things. we shoulda attempt to
-	// infer more from the input dataset & make smarter assumption about empty data
-	// this implies that all datasets must have a body, which isn't true :/
-	t.infile = cafs.NewMemfileBytes("data.json", []byte("[]"))
-
 	funcs, err := t.specialFuncs()
 	if err != nil {
 		return nil, err
@@ -237,7 +231,7 @@ func callTransformFunc(t *transform, thread *starlark.Thread, ctx *skyctx.Contex
 		}
 		return err
 	}
-	t.print("⚙️  running transform...\n")
+	t.print("🤖  running transform...\n")
 
 	d := skyds.NewDataset(t.ds, t.infile, t.checkFunc)
 	if _, err = starlark.Call(thread, transform, starlark.Tuple{d.Methods(), ctx.Struct()}, nil); err != nil {
