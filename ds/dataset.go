@@ -22,15 +22,15 @@ type MutateFieldCheck func(path ...string) error
 
 // Dataset is a qri dataset starlark type
 type Dataset struct {
-	ds     *dataset.Dataset
-	infile cafs.File
-	body   starlark.Iterable
-	check  MutateFieldCheck
+	ds       *dataset.Dataset
+	bodyFile cafs.File
+	body     starlark.Iterable
+	check    MutateFieldCheck
 }
 
 // NewDataset creates a dataset object
-func NewDataset(ds *dataset.Dataset, infile cafs.File, check MutateFieldCheck) *Dataset {
-	return &Dataset{ds: ds, infile: infile, check: check}
+func NewDataset(ds *dataset.Dataset, bodyFile cafs.File, check MutateFieldCheck) *Dataset {
+	return &Dataset{ds: ds, bodyFile: bodyFile, check: check}
 }
 
 // Dataset returns the underlying dataset
@@ -38,9 +38,9 @@ func (d *Dataset) Dataset() *dataset.Dataset {
 	return d.ds
 }
 
-// Infile gives access to the private infile
-func (d *Dataset) Infile() cafs.File {
-	return d.infile
+// BodyFile gives access to the private bodyFile
+func (d *Dataset) BodyFile() cafs.File {
+	return d.bodyFile
 }
 
 // Methods exposes dataset methods as starlark values
@@ -120,7 +120,7 @@ func (d *Dataset) GetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 		return d.body, nil
 	}
 
-	if d.infile == nil {
+	if d.bodyFile == nil {
 		return starlark.None, fmt.Errorf("no DataFile")
 	}
 	if d.ds.Structure == nil {
@@ -128,11 +128,11 @@ func (d *Dataset) GetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 	}
 
 	// TODO - this is bad. make not bad.
-	data, err := ioutil.ReadAll(d.infile)
+	data, err := ioutil.ReadAll(d.bodyFile)
 	if err != nil {
 		return starlark.None, err
 	}
-	d.infile = cafs.NewMemfileBytes("data.json", data)
+	d.bodyFile = cafs.NewMemfileBytes("data.json", data)
 
 	rr, err := dsio.NewEntryReader(d.ds.Structure, cafs.NewMemfileBytes("data.json", data))
 	if err != nil {
@@ -175,7 +175,7 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 
 	if raw {
 		if str, ok := data.(starlark.String); ok {
-			d.infile = cafs.NewMemfileBytes("data", []byte(string(str)))
+			d.bodyFile = cafs.NewMemfileBytes("data", []byte(string(str)))
 			return starlark.None, nil
 		}
 
@@ -212,7 +212,7 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 	if err := w.Close(); err != nil {
 		return starlark.None, err
 	}
-	d.infile = cafs.NewMemfileBytes("data.json", w.Bytes())
+	d.bodyFile = cafs.NewMemfileBytes("data.json", w.Bytes())
 
 	return starlark.None, nil
 }
