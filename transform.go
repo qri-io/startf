@@ -58,7 +58,7 @@ type transform struct {
 	skyqri    *skyqri.Module
 	checkFunc func(path ...string) error
 	globals   starlark.StringDict
-	infile    cafs.File
+	bodyFile  cafs.File
 
 	download starlark.Iterable
 }
@@ -105,7 +105,7 @@ func ExecScript(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o 
 		node:      o.Node,
 		ds:        ds,
 		skyqri:    skyqri.NewModule(o.Node, ds),
-		infile:    bodyFile,
+		bodyFile:  bodyFile,
 		checkFunc: o.MutateFieldCheck,
 	}
 
@@ -148,7 +148,7 @@ func ExecScript(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o 
 
 	err = callTransformFunc(t, thread, ctx)
 
-	return t.infile, err
+	return t.bodyFile, err
 }
 
 // Error halts program execution with an error
@@ -233,11 +233,11 @@ func callTransformFunc(t *transform, thread *starlark.Thread, ctx *skyctx.Contex
 	}
 	t.print("🤖  running transform...\n")
 
-	d := skyds.NewDataset(t.ds, t.infile, t.checkFunc)
+	d := skyds.NewDataset(t.ds, t.bodyFile, t.checkFunc)
 	if _, err = starlark.Call(thread, transform, starlark.Tuple{d.Methods(), ctx.Struct()}, nil); err != nil {
 		return err
 	}
-	t.infile = d.Infile()
+	t.bodyFile = d.BodyFile()
 	return nil
 }
 
