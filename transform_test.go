@@ -6,10 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	starlark "github.com/google/skylark"
 	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
+	"go.starlark.net/starlark"
 )
 
 func scriptFile(t *testing.T, path string) *cafs.Memfile {

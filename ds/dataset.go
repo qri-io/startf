@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	starlark "github.com/google/skylark"
-	starlarkstruct "github.com/google/skylark/skylarkstruct"
 	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
 	"github.com/qri-io/jsonschema"
 	"github.com/qri-io/starlib/util"
+	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
 )
 
 // MutateFieldCheck is a function to check if a dataset field can be mutated

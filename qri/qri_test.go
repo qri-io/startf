@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	starlark "github.com/google/skylark"
 	"github.com/qri-io/dataset"
+	"go.starlark.net/starlark"
 )
 
 func TestNewModule(t *testing.T) {

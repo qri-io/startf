@@ -5,9 +5,9 @@ import (
 	"log"
 	"testing"
 
-	starlark "github.com/google/skylark"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
+	"go.starlark.net/starlark"
 )
 
 // assert *EntryReader conforms to dsio.EntryReader interface
@@ -56,9 +56,9 @@ func TestEntryReaderSimpleList(t *testing.T) {
 func TestEntryReaderSimpleDict(t *testing.T) {
 	var elems *starlark.Dict
 	elems = &starlark.Dict{}
-	elems.Set(starlark.String("a"), starlark.MakeInt(1))
-	elems.Set(starlark.String("b"), starlark.MakeInt(2))
-	elems.Set(starlark.String("c"), starlark.MakeInt(3))
+	elems.SetKey(starlark.String("a"), starlark.MakeInt(1))
+	elems.SetKey(starlark.String("b"), starlark.MakeInt(2))
+	elems.SetKey(starlark.String("c"), starlark.MakeInt(3))
 	st := &dataset.Structure{
 		Schema: dataset.BaseSchemaObject,
 	}

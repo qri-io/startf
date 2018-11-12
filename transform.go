@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io"
 
-	starlark "github.com/google/skylark"
-	"github.com/google/skylark/resolve"
 	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/qri/p2p"
@@ -16,6 +14,8 @@ import (
 	skyctx "github.com/qri-io/startf/context"
 	skyds "github.com/qri-io/startf/ds"
 	skyqri "github.com/qri-io/startf/qri"
+	"go.starlark.net/resolve"
+	"go.starlark.net/starlark"
 )
 
 // ExecOpts defines options for execution

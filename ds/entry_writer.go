@@ -3,11 +3,11 @@ package ds
 import (
 	"fmt"
 
-	starlark "github.com/google/skylark"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
 	"github.com/qri-io/jsonschema"
 	"github.com/qri-io/starlib/util"
+	"go.starlark.net/starlark"
 )
 
 // StarlarkEntryWriter creates a starlark.Value as an EntryWriter
@@ -29,7 +29,7 @@ func (w *StarlarkEntryWriter) WriteEntry(ent dsio.Entry) error {
 		if err != nil {
 			return err
 		}
-		dict.Set(key, val)
+		dict.SetKey(key, val)
 	} else {
 		list := w.Object.(*starlark.List)
 		val, err := util.Marshal(ent.Value)
