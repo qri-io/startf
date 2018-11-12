@@ -19,14 +19,14 @@ jobs:
             github.com/jstemmer/go-junit-report 
             github.com/qri-io/cafs
             github.com/qri-io/dataset
-            github.com/google/skylark
-            github.com/google/skylark/repl
-            github.com/google/skylark/resolve
             github.com/qri-io/dataset
             github.com/qri-io/dataset/dsio
             github.com/qri-io/ioes
             github.com/PuerkitoBio/goquery
             github.com/360EntSecGroup-Skylar/excelize
+            go.starlark.net/starlark
+            go.starlark.net/repl
+            go.starlark.net/resolve
       - run: 
           name: Run Lint Tests
           command: golint -set_exit_status ./... 

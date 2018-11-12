@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	starlark "github.com/google/skylark"
-	starlarkstruct "github.com/google/skylark/skylarkstruct"
 	"github.com/ipfs/go-datastore"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsfs"
@@ -13,6 +11,8 @@ import (
 	"github.com/qri-io/qri/p2p"
 	"github.com/qri-io/qri/repo"
 	"github.com/qri-io/starlib/util"
+	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
 )
 
 // ModuleName defines the expected name for this module when used
@@ -117,7 +117,7 @@ func (m *Module) LoadDatasetBody(thread *starlark.Thread, _ *starlark.Builtin, a
 	if err != nil {
 		return starlark.None, fmt.Errorf("error allocating data reader: %s", err)
 	}
-	w, err := NewSkylarkEntryWriter(ds.Structure)
+	w, err := NewStarlarkEntryWriter(ds.Structure)
 	if err != nil {
 		return starlark.None, fmt.Errorf("error allocating starlark entry writer: %s", err)
 	}

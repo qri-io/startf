@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"io"
 
-	starlark "github.com/google/skylark"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
 	"github.com/qri-io/starlib/util"
+	"go.starlark.net/starlark"
 )
 
 // EntryReader implements the dsio.EntryReader interface for starlark.Iterable's

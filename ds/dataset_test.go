@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	starlark "github.com/google/skylark"
+	"go.starlark.net/starlark"
 )
 
 func TestCheckFields(t *testing.T) {

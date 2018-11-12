@@ -3,9 +3,9 @@ package context
 import (
 	"fmt"
 
-	starlark "github.com/google/skylark"
-	starlarkstruct "github.com/google/skylark/skylarkstruct"
 	"github.com/qri-io/starlib/util"
+	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
 )
 
 // Context carries values across function calls in a transformation
@@ -27,7 +27,7 @@ func NewContext(config, secrets map[string]interface{}) *Context {
 	}
 }
 
-// Struct delivers this context as a skylark struct
+// Struct delivers this context as a starlark struct
 func (c *Context) Struct() *starlarkstruct.Struct {
 	dict := starlark.StringDict{
 		"set":        starlark.NewBuiltin("set", c.setValue),
