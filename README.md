@@ -7,16 +7,16 @@
 
 # Qri Starlark Transformation Syntax
 
-Qri ("query") is about datasets. Transformions are repeatable scripts for generating a dataset. [Starlark](https://github.com/google/starlark-go/blob/master/doc/spec.md) is a scripting langauge from Google that feels a lot like python. This package implements starlark as a _transformation syntax_. Starlark tranformations are about as close as one can get to the full power of a programming language as a transformation syntax. Often you need this degree of control to generate a dataset.
+Qri ("query") is about datasets. Transformations are repeatable scripts for generating a dataset. [Starlark](https://github.com/google/starlark-go/blob/master/doc/spec.md) is a scripting language from Google that feels a lot like python. This package implements starlark as a _transformation syntax_. Starlark tranformations are about as close as one can get to the full power of a programming language as a transformation syntax. Often you need this degree of control to generate a dataset.
 
 Typical examples of a starlark transformation include:
 * combining paginated calls to an API into a single dataset
 * downloading unstructured structured data from the internet to extract
-* re-shaping raw input data before saving a dataset
+* pulling raw data off the web & turning it into a datset
 
 We're excited about starlark for a few reasons:
 * **python syntax** - _many_ people working in data science these days write python, we like that, starlark likes that. dope.
-* **deterministic subset of python** - unlike python, starlark removes properties that reduce introspection into code behaviour. things like `while` loops and recursive functions are ommitted, making it possible for qri to infer how a given transformation will behave.
+* **deterministic subset of python** - unlike python, starlark removes properties that reduce introspection into code behaviour. things like `while` loops and recursive functions are omitted, making it possible for qri to infer how a given transformation will behave.
 * **parallel execution** - thanks to this deterministic requirement (and lack of global interpreter lock) starlark functions can be executed in parallel. Combined with peer-2-peer networking, we're hoping to advance tranformations toward peer-driven distribed computing. More on that in the coming months.
 
 
@@ -37,40 +37,38 @@ $ go test ./...
 
 Often the next steps are to install [qri](https://github.com/qri-io/qri), mess with this `startf` package, then rebuild qri with your changes to see them in action within qri itself.
 
-## Starlark Data Functions
+## Starlark Special Functions
 
-Data Functions are the core of a starlark transform script. Here's an example of a simple data function that returns a constant result:
+_Special Functions_ are the core of a starlark transform script. Here's an example of a simple data function that sets the body of a dataset to a constant:
 
 ```python
-def transform(qri):
-  return ["hello","world"]
+def transform(ds,ctx):
+  ds.set_meta(["hello","world"])
 ```
 
-Here's something slightly more complicated that modifies a previous dataset by adding up the length of all of the elements:
+Here's something slightly more complicated (but still very contrived) that modifies a dataset by adding up the length of all of the elements in a dataset body
 
 ```python
-def transform(qri):
+def transform(ds, ctx):
   body = qri.get_body()
-  count = 0
-  for entry in body:
-    count += len(entry)
-  return [{"total": count}]
+  if body != None:
+    count = 0
+    for entry in body:
+      count += len(entry)
+  ds.set_body([{"total": count}])
 ```
 
-Starlark transformations have a few rules on top of starlark itself:
-* Data functions *always* return an array or dictionary/object, representing the new dataset body
+Starlark special functions have a few rules on top of starlark itself:
+* special functions *always* accept a _transformation context_ (the `ctx` arg)
 * When you define a data function, qri calls it for you
-* All transform functions are optional (you don't _need_ to define them), _but_
-* A transformation must have at least one data function
-* Data functions are always called in the same order
-* Data functions often get a `qri` parameter that lets them do special things
+* All special functions are optional (you don't _need_ to define them), except `transform`. transform is required.
+* Special functions are always called in the same order
 
 More docs on the provide API is coming soon.
 
-
 ## Running a transform
 
-Let's say the above function is saved as `transform.star`. First, create a configuration file (saved as `config.yaml`, for example) with at least the minimal structure:
+Let's say the above function is saved as `transform.star`. First, create a dataset file (saved as `dataset.yaml`, for example) with at least the minimal structure:
 
 ```
 name: dataset_name
@@ -84,9 +82,9 @@ transform:
 Then invoke qri:
 
 ```
-qri update --file=config.yaml me/dataset_name
+qri save --file=config.yaml
 ```
 
-If the script uses qri.get_body, there must be an existing version of the dataset already. Otherwise, if the dataset doesn't exist yet, and is being created from some other source, use `qri add` instead.
+Fun! More info over on our [docs site](https://qri/io/docs)
 
 ** **
