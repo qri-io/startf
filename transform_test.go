@@ -1,6 +1,7 @@
 package startf
 
 import (
+	"bytes"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -25,13 +26,24 @@ func TestExecScript(t *testing.T) {
 	ds := &dataset.Dataset{}
 	script := scriptFile(t, "testdata/tf.star")
 
-	body, err := ExecScript(ds, script, nil)
+	stdout := &bytes.Buffer{}
+	body, err := ExecScript(ds, script, nil, SetOutWriter(stdout))
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
 	if ds.Transform == nil {
 		t.Error("expected transform")
+	}
+
+	output, err := ioutil.ReadAll(stdout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expect := `🤖  running transform...
+hello world!`
+	if string(output) != expect {
+		t.Errorf("stdout mismatch. expected: '%s', got: '%s'", expect, string(output))
 	}
 
 	entryReader, err := dsio.NewEntryReader(ds.Structure, body)

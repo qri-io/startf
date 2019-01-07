@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 
 	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
@@ -21,13 +22,14 @@ import (
 // ExecOpts defines options for execution
 type ExecOpts struct {
 	Node             *p2p.QriNode
-	AllowFloat       bool                   // allow floating-point numbers
-	AllowSet         bool                   // allow set data type
-	AllowLambda      bool                   // allow lambda expressions
-	AllowNestedDef   bool                   // allow nested def statements
-	Secrets          map[string]interface{} // passed-in secrets (eg: API keys)
-	Globals          starlark.StringDict
-	MutateFieldCheck func(path ...string) error
+	AllowFloat       bool                       // allow floating-point numbers
+	AllowSet         bool                       // allow set data type
+	AllowLambda      bool                       // allow lambda expressions
+	AllowNestedDef   bool                       // allow nested def statements
+	Secrets          map[string]interface{}     // passed-in secrets (eg: API keys)
+	Globals          starlark.StringDict        // global values to pass for script execution
+	MutateFieldCheck func(path ...string) error // func that errors if field specified by path is mutated
+	OutWriter        io.Writer                  // provide a writer to record script "stdout" to
 }
 
 // AddQriNodeOpt adds a qri node to execution options
@@ -44,12 +46,22 @@ func AddMutateFieldCheck(check func(path ...string) error) func(o *ExecOpts) {
 	}
 }
 
+// SetOutWriter provides a writer to record the "stdout" of the transform script to
+func SetOutWriter(w io.Writer) func(o *ExecOpts) {
+	return func(o *ExecOpts) {
+		if w != nil {
+			o.OutWriter = w
+		}
+	}
+}
+
 // DefaultExecOpts applies default options to an ExecOpts pointer
 func DefaultExecOpts(o *ExecOpts) {
 	o.AllowFloat = true
 	o.AllowSet = true
 	o.AllowLambda = true
 	o.Globals = starlark.StringDict{}
+	o.OutWriter = ioutil.Discard
 }
 
 type transform struct {
@@ -59,6 +71,7 @@ type transform struct {
 	checkFunc func(path ...string) error
 	globals   starlark.StringDict
 	bodyFile  cafs.File
+	stdout    io.Writer
 
 	download starlark.Iterable
 }
@@ -66,6 +79,7 @@ type transform struct {
 // ExecScript executes a transformation against a starlark script file, giving back an EntryReader of resulting data
 // ExecScript modifies the given dataset pointer. At bare minimum it will set transformation details, but starlark scripts can modify
 // many parts of the dataset pointer, including meta, structure, and transform
+// the returned io.Reader contains printed output from script execution
 func ExecScript(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o *ExecOpts)) (cafs.File, error) {
 	var err error
 
@@ -101,22 +115,30 @@ func ExecScript(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o 
 	tr := io.TeeReader(script, buf)
 	pipeScript := cafs.NewMemfileReader(script.FileName(), tr)
 
+	// buffer for script output
+
 	t := &transform{
 		node:      o.Node,
 		ds:        ds,
 		skyqri:    skyqri.NewModule(o.Node, ds),
 		bodyFile:  bodyFile,
 		checkFunc: o.MutateFieldCheck,
+		stdout:    o.OutWriter,
+	}
+
+	if o.Node != nil {
+		// if node localstreams exists, write to both localstreams and output buffer
+		t.stdout = io.MultiWriter(o.OutWriter, o.Node.LocalStreams.Out)
 	}
 
 	ctx := skyctx.NewContext(ds.Transform.Config, o.Secrets)
 
-	thread := &starlark.Thread{Load: t.Loader}
-	if o.Node != nil {
-		thread.Print = func(thread *starlark.Thread, msg string) {
+	thread := &starlark.Thread{
+		Load: t.Loader,
+		Print: func(thread *starlark.Thread, msg string) {
 			// note we're ignoring a returned error here
-			_, _ = o.Node.LocalStreams.Out.Write([]byte(msg))
-		}
+			_, _ = t.stdout.Write([]byte(msg))
+		},
 	}
 
 	// execute the transformation
@@ -249,9 +271,7 @@ func (t *transform) setSpinnerMsg(msg string) {
 
 // print writes output only if a node is specified
 func (t *transform) print(msg string) {
-	if t.node != nil {
-		t.node.LocalStreams.Print(msg)
-	}
+	t.stdout.Write([]byte(msg))
 }
 
 func (t *transform) Loader(thread *starlark.Thread, module string) (dict starlark.StringDict, err error) {
