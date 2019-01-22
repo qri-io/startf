@@ -1,3 +1,22 @@
+<a name="0.2.0"></a>
+# [0.2.0](https://github.com/qri-io/startf/compare/v0.1.0...v0.2.0) (2019-01-22)
+
+
+### Bug Fixes
+
+* **empty body:** remove empty body array assumption ([de5d458](https://github.com/qri-io/startf/commit/de5d458))
+* update to fix starlib util.AsString change ([2f965c6](https://github.com/qri-io/startf/commit/2f965c6))
+
+
+### Features
+
+* **context:** add context package ([cd70f69](https://github.com/qri-io/startf/commit/cd70f69))
+* **context:** add get_config, get_secret funcs to context ([4a41689](https://github.com/qri-io/startf/commit/4a41689))
+* **MutateCheck:** add option for dataset mutation checks, ExecFile -> ExecScript ([c7e65a3](https://github.com/qri-io/startf/commit/c7e65a3))
+* **OutWriter:** accept writer param on ExecTransform to record script stdout ([19e7c43](https://github.com/qri-io/startf/commit/19e7c43))
+
+
+
 <a name="0.0.2"></a>
 # [0.0.2](https://github.com/qri-io/skytf/compare/v0.0.1...v0.0.2) (2018-06-18)
 
