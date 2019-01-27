@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ipfs/go-datastore"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsfs"
 	"github.com/qri-io/dataset/dsio"
@@ -108,7 +107,7 @@ func (m *Module) LoadDatasetBody(thread *starlark.Thread, _ *starlark.Builtin, a
 		return starlark.None, err
 	}
 
-	f, err := m.node.Repo.Store().Get(datastore.NewKey(ds.BodyPath))
+	f, err := m.node.Repo.Store().Get(ds.BodyPath)
 	if err != nil {
 		return starlark.None, err
 	}
@@ -144,7 +143,7 @@ func (m *Module) loadDsHead(refstr string) (*dataset.Dataset, error) {
 	}
 	m.node.LocalStreams.Out.Write([]byte(fmt.Sprintf("loading dataset: %s", ref.String())))
 
-	ds, err := dsfs.LoadDataset(m.node.Repo.Store(), datastore.NewKey(ref.Path))
+	ds, err := dsfs.LoadDataset(m.node.Repo.Store(), ref.Path)
 	if err != nil {
 		return nil, err
 	}
