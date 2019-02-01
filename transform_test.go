@@ -7,27 +7,29 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
+	"github.com/qri-io/fs"
 	"go.starlark.net/starlark"
 )
 
-func scriptFile(t *testing.T, path string) *cafs.Memfile {
+func scriptFile(t *testing.T, path string) fs.File {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	return cafs.NewMemfileBytes(path, data)
+	return fs.NewMemfileBytes(path, data)
 }
 
 func TestExecScript(t *testing.T) {
-	ds := &dataset.Dataset{}
-	script := scriptFile(t, "testdata/tf.star")
+	ds := &dataset.Dataset{
+		Transform: &dataset.Transform{},
+	}
+	ds.Transform.SetScriptFile(scriptFile(t, "testdata/tf.star"))
 
 	stdout := &bytes.Buffer{}
-	body, err := ExecScript(ds, script, nil, SetOutWriter(stdout))
+	err := ExecScript(ds, SetOutWriter(stdout))
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -46,7 +48,7 @@ hello world!`
 		t.Errorf("stdout mismatch. expected: '%s', got: '%s'", expect, string(output))
 	}
 
-	entryReader, err := dsio.NewEntryReader(ds.Structure, body)
+	entryReader, err := dsio.NewEntryReader(ds.Structure, ds.BodyFile())
 	if err != nil {
 		t.Errorf("couldn't create entry reader from returned dataset & body file: %s", err.Error())
 		return
@@ -72,9 +74,11 @@ func TestExecScript2(t *testing.T) {
 		w.Write([]byte(`{"foo":["bar","baz","bat"]}`))
 	}))
 
-	ds := &dataset.Dataset{}
-	script := scriptFile(t, "testdata/fetch.star")
-	_, err := ExecScript(ds, script, nil, func(o *ExecOpts) {
+	ds := &dataset.Dataset{
+		Transform: &dataset.Transform{},
+	}
+	ds.Transform.SetScriptFile(scriptFile(t, "testdata/fetch.star"))
+	err := ExecScript(ds, func(o *ExecOpts) {
 		o.Globals["test_server_url"] = starlark.String(s.URL)
 	})
 

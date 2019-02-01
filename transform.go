@@ -8,8 +8,8 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
+	"github.com/qri-io/fs"
 	"github.com/qri-io/qri/p2p"
 	"github.com/qri-io/starlib"
 	skyctx "github.com/qri-io/startf/context"
@@ -70,7 +70,7 @@ type transform struct {
 	skyqri    *skyqri.Module
 	checkFunc func(path ...string) error
 	globals   starlark.StringDict
-	bodyFile  cafs.File
+	bodyFile  fs.File
 	stdout    io.Writer
 
 	download starlark.Iterable
@@ -80,8 +80,12 @@ type transform struct {
 // ExecScript modifies the given dataset pointer. At bare minimum it will set transformation details, but starlark scripts can modify
 // many parts of the dataset pointer, including meta, structure, and transform
 // the returned io.Reader contains printed output from script execution
-func ExecScript(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o *ExecOpts)) (cafs.File, error) {
+func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
+	// script, bodyFile fs.File,
 	var err error
+	if ds.Transform == nil || ds.Transform.ScriptFile() == nil {
+		return fmt.Errorf("no script to execute")
+	}
 
 	o := &ExecOpts{}
 	DefaultExecOpts(o)
@@ -102,18 +106,15 @@ func ExecScript(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o 
 	}
 
 	// set transform details
-	if ds.Transform == nil {
-		ds.Transform = &dataset.Transform{}
-	}
 	ds.Transform.Syntax = "starlark"
 	ds.Transform.SyntaxVersion = Version
 
+	script := ds.Transform.ScriptFile()
 	// "tee" the script reader to avoid losing script data, as starlark.ExecFile
 	// reads, data will be copied to buf, which is re-set to the transform script
 	buf := &bytes.Buffer{}
-	ds.Transform.Script = buf
 	tr := io.TeeReader(script, buf)
-	pipeScript := cafs.NewMemfileReader(script.FileName(), tr)
+	pipeScript := fs.NewMemfileReader(script.FileName(), tr)
 
 	// buffer for script output
 
@@ -121,7 +122,6 @@ func ExecScript(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o 
 		node:      o.Node,
 		ds:        ds,
 		skyqri:    skyqri.NewModule(o.Node, ds),
-		bodyFile:  bodyFile,
 		checkFunc: o.MutateFieldCheck,
 		stdout:    o.OutWriter,
 	}
@@ -145,14 +145,14 @@ func ExecScript(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o 
 	t.globals, err = starlark.ExecFile(thread, pipeScript.FileName(), pipeScript, nil)
 	if err != nil {
 		if evalErr, ok := err.(*starlark.EvalError); ok {
-			return nil, fmt.Errorf(evalErr.Backtrace())
+			return fmt.Errorf(evalErr.Backtrace())
 		}
-		return nil, err
+		return err
 	}
 
 	funcs, err := t.specialFuncs()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	for name, fn := range funcs {
@@ -160,9 +160,9 @@ func ExecScript(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o 
 
 		if err != nil {
 			if evalErr, ok := err.(*starlark.EvalError); ok {
-				return nil, fmt.Errorf(evalErr.Backtrace())
+				return fmt.Errorf(evalErr.Backtrace())
 			}
-			return nil, err
+			return err
 		}
 
 		ctx.SetResult(name, val)
@@ -170,7 +170,10 @@ func ExecScript(ds *dataset.Dataset, script, bodyFile cafs.File, opts ...func(o 
 
 	err = callTransformFunc(t, thread, ctx)
 
-	return t.bodyFile, err
+	// restore consumed script file
+	ds.Transform.SetScriptFile(fs.NewMemfileBytes("transform.star", buf.Bytes()))
+
+	return err
 }
 
 // Error halts program execution with an error
@@ -255,11 +258,10 @@ func callTransformFunc(t *transform, thread *starlark.Thread, ctx *skyctx.Contex
 	}
 	t.print("🤖  running transform...\n")
 
-	d := skyds.NewDataset(t.ds, t.bodyFile, t.checkFunc)
+	d := skyds.NewDataset(t.ds, t.checkFunc)
 	if _, err = starlark.Call(thread, transform, starlark.Tuple{d.Methods(), ctx.Struct()}, nil); err != nil {
 		return err
 	}
-	t.bodyFile = d.BodyFile()
 	return nil
 }
 
