@@ -9,7 +9,7 @@ import (
 	"io/ioutil"
 
 	"github.com/qri-io/dataset"
-	"github.com/qri-io/fs"
+	"github.com/qri-io/qfs"
 	"github.com/qri-io/qri/p2p"
 	"github.com/qri-io/starlib"
 	skyctx "github.com/qri-io/startf/context"
@@ -70,7 +70,7 @@ type transform struct {
 	skyqri    *skyqri.Module
 	checkFunc func(path ...string) error
 	globals   starlark.StringDict
-	bodyFile  fs.File
+	bodyFile  qfs.File
 	stdout    io.Writer
 
 	download starlark.Iterable
@@ -81,7 +81,7 @@ type transform struct {
 // many parts of the dataset pointer, including meta, structure, and transform
 // the returned io.Reader contains printed output from script execution
 func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
-	// script, bodyFile fs.File,
+	// script, bodyFile qfs.File,
 	var err error
 	if ds.Transform == nil || ds.Transform.ScriptFile() == nil {
 		return fmt.Errorf("no script to execute")
@@ -114,7 +114,7 @@ func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 	// reads, data will be copied to buf, which is re-set to the transform script
 	buf := &bytes.Buffer{}
 	tr := io.TeeReader(script, buf)
-	pipeScript := fs.NewMemfileReader(script.FileName(), tr)
+	pipeScript := qfs.NewMemfileReader(script.FileName(), tr)
 
 	// buffer for script output
 
@@ -171,7 +171,7 @@ func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 	err = callTransformFunc(t, thread, ctx)
 
 	// restore consumed script file
-	ds.Transform.SetScriptFile(fs.NewMemfileBytes("transform.star", buf.Bytes()))
+	ds.Transform.SetScriptFile(qfs.NewMemfileBytes("transform.star", buf.Bytes()))
 
 	return err
 }

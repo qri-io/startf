@@ -9,17 +9,17 @@ import (
 
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
-	"github.com/qri-io/fs"
+	"github.com/qri-io/qfs"
 	"go.starlark.net/starlark"
 )
 
-func scriptFile(t *testing.T, path string) fs.File {
+func scriptFile(t *testing.T, path string) qfs.File {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	return fs.NewMemfileBytes(path, data)
+	return qfs.NewMemfileBytes(path, data)
 }
 
 func TestExecScript(t *testing.T) {

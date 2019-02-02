@@ -8,7 +8,7 @@ import (
 
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
-	"github.com/qri-io/fs"
+	"github.com/qri-io/qfs"
 	"github.com/qri-io/starlib/util"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -125,9 +125,9 @@ func (d *Dataset) GetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 	if err != nil {
 		return starlark.None, err
 	}
-	d.ds.SetBodyFile(fs.NewMemfileBytes("data.json", data))
+	d.ds.SetBodyFile(qfs.NewMemfileBytes("data.json", data))
 
-	rr, err := dsio.NewEntryReader(d.ds.Structure, fs.NewMemfileBytes("data.json", data))
+	rr, err := dsio.NewEntryReader(d.ds.Structure, qfs.NewMemfileBytes("data.json", data))
 	if err != nil {
 		return starlark.None, fmt.Errorf("error allocating data reader: %s", err)
 	}
@@ -168,7 +168,7 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 
 	if raw {
 		if str, ok := data.(starlark.String); ok {
-			d.ds.SetBodyFile(fs.NewMemfileBytes("data", []byte(string(str))))
+			d.ds.SetBodyFile(qfs.NewMemfileBytes("data", []byte(string(str))))
 			return starlark.None, nil
 		}
 
@@ -206,7 +206,7 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 		return starlark.None, err
 	}
 
-	d.ds.SetBodyFile(fs.NewMemfileBytes("data.json", w.Bytes()))
+	d.ds.SetBodyFile(qfs.NewMemfileBytes("data.json", w.Bytes()))
 
 	return starlark.None, nil
 }
