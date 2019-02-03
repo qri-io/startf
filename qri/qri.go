@@ -79,7 +79,7 @@ func (m *Module) LoadDatasetHead(thread *starlark.Thread, _ *starlark.Builtin, a
 		return starlark.None, err
 	}
 
-	data, err := json.Marshal(ds.Encode())
+	data, err := json.Marshal(ds)
 	if err != nil {
 		return starlark.None, err
 	}

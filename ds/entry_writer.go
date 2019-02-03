@@ -1,11 +1,8 @@
 package ds
 
 import (
-	"fmt"
-
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
-	"github.com/qri-io/jsonschema"
 	"github.com/qri-io/starlib/util"
 	"go.starlark.net/starlark"
 )
@@ -58,7 +55,7 @@ func (w *StarlarkEntryWriter) Value() starlark.Value {
 
 // NewStarlarkEntryWriter returns a new StarlarkEntryWriter
 func NewStarlarkEntryWriter(st *dataset.Structure) (*StarlarkEntryWriter, error) {
-	mode, err := schemaScanMode(st.Schema)
+	mode, err := schemaScanMode(st)
 	if err != nil {
 		return nil, err
 	}
@@ -77,20 +74,13 @@ const (
 )
 
 // schemaScanMode determines weather the top level is an array or object
-func schemaScanMode(sc *jsonschema.RootSchema) (scanMode, error) {
-	if vt, ok := sc.Validators["type"]; ok {
-		// TODO - lol go PR jsonschema to export access to this instead of this
-		// silly validation hack
-		obj := []jsonschema.ValError{}
-		arr := []jsonschema.ValError{}
-		vt.Validate("", map[string]interface{}{}, &obj)
-		vt.Validate("", []interface{}{}, &arr)
-		if len(obj) == 0 {
-			return smObject, nil
-		} else if len(arr) == 0 {
-			return smArray, nil
-		}
+func schemaScanMode(st *dataset.Structure) (scanMode, error) {
+	tlt, err := dsio.GetTopLevelType(st)
+	if err != nil {
+		return smArray, err
 	}
-	err := fmt.Errorf("invalid schema. root must be either an array or object type")
-	return smArray, err
+	if tlt == "array" {
+		return smArray, nil
+	}
+	return smObject, nil
 }

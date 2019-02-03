@@ -42,7 +42,12 @@ func (r *EntryReader) ReadEntry() (e dsio.Entry, err error) {
 	}
 
 	// Handle array entry.
-	if r.st.Schema.TopLevelType() == "array" {
+	tlt, err := dsio.GetTopLevelType(r.st)
+	if err != nil {
+		return
+	}
+
+	if tlt == "array" {
 		e.Index = r.i
 		r.i++
 		e.Value, err = util.Unmarshal(next)

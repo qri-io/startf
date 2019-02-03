@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/qri-io/cafs"
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
-	"github.com/qri-io/jsonschema"
+	"github.com/qri-io/qfs"
 	"github.com/qri-io/starlib/util"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -22,25 +21,19 @@ type MutateFieldCheck func(path ...string) error
 
 // Dataset is a qri dataset starlark type
 type Dataset struct {
-	ds       *dataset.Dataset
-	bodyFile cafs.File
-	body     starlark.Iterable
-	check    MutateFieldCheck
+	ds    *dataset.Dataset
+	body  starlark.Iterable
+	check MutateFieldCheck
 }
 
 // NewDataset creates a dataset object
-func NewDataset(ds *dataset.Dataset, bodyFile cafs.File, check MutateFieldCheck) *Dataset {
-	return &Dataset{ds: ds, bodyFile: bodyFile, check: check}
+func NewDataset(ds *dataset.Dataset, check MutateFieldCheck) *Dataset {
+	return &Dataset{ds: ds, check: check}
 }
 
 // Dataset returns the underlying dataset
 func (d *Dataset) Dataset() *dataset.Dataset {
 	return d.ds
-}
-
-// BodyFile gives access to the private bodyFile
-func (d *Dataset) BodyFile() cafs.File {
-	return d.bodyFile
 }
 
 // Methods exposes dataset methods as starlark values
@@ -100,14 +93,14 @@ func (d *Dataset) SetSchema(thread *starlark.Thread, _ *starlark.Builtin, args s
 		return starlark.None, err
 	}
 
-	rs := &jsonschema.RootSchema{}
-	if err := json.Unmarshal([]byte(valx.String()), rs); err != nil {
+	rs := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(valx.String()), &rs); err != nil {
 		return starlark.None, err
 	}
 
 	if d.ds.Structure == nil {
 		d.ds.Structure = &dataset.Structure{
-			Format: dataset.JSONDataFormat,
+			Format: "json",
 		}
 	}
 	d.ds.Structure.Schema = rs
@@ -120,21 +113,21 @@ func (d *Dataset) GetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 		return d.body, nil
 	}
 
-	if d.bodyFile == nil {
-		return starlark.None, fmt.Errorf("no DataFile")
+	if d.ds.BodyFile() == nil {
+		return starlark.None, fmt.Errorf("this dataset has no body")
 	}
 	if d.ds.Structure == nil {
 		return starlark.None, fmt.Errorf("error: no structure for previous dataset")
 	}
 
 	// TODO - this is bad. make not bad.
-	data, err := ioutil.ReadAll(d.bodyFile)
+	data, err := ioutil.ReadAll(d.ds.BodyFile())
 	if err != nil {
 		return starlark.None, err
 	}
-	d.bodyFile = cafs.NewMemfileBytes("data.json", data)
+	d.ds.SetBodyFile(qfs.NewMemfileBytes("data.json", data))
 
-	rr, err := dsio.NewEntryReader(d.ds.Structure, cafs.NewMemfileBytes("data.json", data))
+	rr, err := dsio.NewEntryReader(d.ds.Structure, qfs.NewMemfileBytes("data.json", data))
 	if err != nil {
 		return starlark.None, fmt.Errorf("error allocating data reader: %s", err)
 	}
@@ -175,7 +168,7 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 
 	if raw {
 		if str, ok := data.(starlark.String); ok {
-			d.bodyFile = cafs.NewMemfileBytes("data", []byte(string(str)))
+			d.ds.SetBodyFile(qfs.NewMemfileBytes("data", []byte(string(str))))
 			return starlark.None, nil
 		}
 
@@ -193,7 +186,7 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 	}
 
 	st := &dataset.Structure{
-		Format: dataset.JSONDataFormat,
+		Format: "json",
 		Schema: sch,
 	}
 
@@ -212,7 +205,8 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 	if err := w.Close(); err != nil {
 		return starlark.None, err
 	}
-	d.bodyFile = cafs.NewMemfileBytes("data.json", w.Bytes())
+
+	d.ds.SetBodyFile(qfs.NewMemfileBytes("data.json", w.Bytes()))
 
 	return starlark.None, nil
 }
