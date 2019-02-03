@@ -17,7 +17,6 @@ jobs:
           command: >
             go get -v -d -u
             github.com/jstemmer/go-junit-report 
-            github.com/qri-io/cafs
             github.com/qri-io/dataset
             github.com/qri-io/dataset
             github.com/qri-io/dataset/dsio
@@ -46,6 +45,7 @@ jobs:
           command: >
             go get -v -d
             github.com/qri-io/startf
+            github.com/qri-io/qfs
       - save_cache:
           key: dependency-cache-{{ checksum "package.json" }}
           paths:
