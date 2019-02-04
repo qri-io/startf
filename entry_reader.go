@@ -74,3 +74,9 @@ func (r *EntryReader) ReadEntry() (e dsio.Entry, err error) {
 	}
 	return
 }
+
+// Close finalizes the reader
+func (r *EntryReader) Close() error {
+	// TODO (b5): consume & close iterator
+	return nil
+}
