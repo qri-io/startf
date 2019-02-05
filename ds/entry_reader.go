@@ -18,6 +18,8 @@ type EntryReader struct {
 	data starlark.Value
 }
 
+var _ dsio.EntryReader = (*EntryReader)(nil)
+
 // NewEntryReader creates a new Entry Reader
 func NewEntryReader(st *dataset.Structure, iter starlark.Iterable) *EntryReader {
 	return &EntryReader{
@@ -74,4 +76,9 @@ func (r *EntryReader) ReadEntry() (e dsio.Entry, err error) {
 		fmt.Printf("reading error: %s\n", err.Error())
 	}
 	return
+}
+
+// Close finalizes the reader
+func (r *EntryReader) Close() error {
+	return nil
 }

@@ -113,8 +113,13 @@ func (d *Dataset) GetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 		return d.body, nil
 	}
 
+	var valx starlark.Value
+	if err := starlark.UnpackArgs("get_body", args, kwargs, "default?", &valx); err != nil {
+		return nil, err
+	}
+
 	if d.ds.BodyFile() == nil {
-		return starlark.None, fmt.Errorf("this dataset has no body")
+		return valx, nil
 	}
 	if d.ds.Structure == nil {
 		return starlark.None, fmt.Errorf("error: no structure for previous dataset")

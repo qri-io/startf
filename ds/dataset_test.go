@@ -12,7 +12,7 @@ func TestCheckFields(t *testing.T) {
 	allErrCheck := func(fields ...string) error {
 		return fieldErr
 	}
-	ds := NewDataset(nil, nil, allErrCheck)
+	ds := NewDataset(nil, allErrCheck)
 	thread := &starlark.Thread{}
 
 	if _, err := ds.SetBody(thread, nil, starlark.Tuple{starlark.String("data")}, nil); err != fieldErr {
