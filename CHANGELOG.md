@@ -1,3 +1,13 @@
+<a name="0.2.1"></a>
+# [0.2.1](https://github.com/qri-io/startf/compare/v0.2.0...v0.2.1) (2019-02-05)
+
+
+### Features
+
+* **ds.get_body:** return None on empty body, support optional default body ([85fa909](https://github.com/qri-io/startf/commit/85fa909))
+
+
+
 <a name="0.2.0"></a>
 # [0.2.0](https://github.com/qri-io/startf/compare/v0.1.0...v0.2.0) (2019-01-22)
 
