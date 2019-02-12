@@ -159,11 +159,12 @@ func (d *Dataset) GetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 // SetBody assigns the dataset body
 func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var (
-		data starlark.Value
-		raw  starlark.Bool
+		data       starlark.Value
+		raw        starlark.Bool
+		dataFormat starlark.String
 	)
 
-	if err := starlark.UnpackArgs("set_body", args, kwargs, "data", &data, "raw?", &raw); err != nil {
+	if err := starlark.UnpackArgs("set_body", args, kwargs, "data", &data, "raw?", &raw, "data_format", &dataFormat); err != nil {
 		return starlark.None, err
 	}
 
@@ -171,9 +172,19 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 		return starlark.None, err
 	}
 
+	df := dataFormat.GoString()
+	if df == "" {
+		// default to json
+		df = "json"
+	}
+
+	if _, err := dataset.ParseDataFormatString(df); err != nil {
+		return starlark.None, fmt.Errorf("invalid data_format: '%s'", df)
+	}
+
 	if raw {
 		if str, ok := data.(starlark.String); ok {
-			d.ds.SetBodyFile(qfs.NewMemfileBytes("data", []byte(string(str))))
+			d.ds.SetBodyFile(qfs.NewMemfileBytes(fmt.Sprintf("data.%s", df), []byte(string(str))))
 			return starlark.None, nil
 		}
 
@@ -191,7 +202,7 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 	}
 
 	st := &dataset.Structure{
-		Format: "json",
+		Format: df,
 		Schema: sch,
 	}
 
@@ -211,7 +222,7 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 		return starlark.None, err
 	}
 
-	d.ds.SetBodyFile(qfs.NewMemfileBytes("data.json", w.Bytes()))
+	d.ds.SetBodyFile(qfs.NewMemfileBytes(fmt.Sprintf("data.%s", df), w.Bytes()))
 
 	return starlark.None, nil
 }
