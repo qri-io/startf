@@ -27,3 +27,7 @@ func TestCheckFields(t *testing.T) {
 		t.Errorf("expected fieldErr, got: %s", err)
 	}
 }
+
+func TestSetBody(t *testing.T) {
+	t.Skip("TODO (b5)")
+}
