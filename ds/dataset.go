@@ -64,7 +64,7 @@ func (d *Dataset) SetMeta(thread *starlark.Thread, _ *starlark.Builtin, args sta
 		return nil, err
 	}
 
-	key := keyx.String()
+	key := keyx.GoString()
 
 	if err := d.checkField("meta", "key"); err != nil {
 		return starlark.None, err
