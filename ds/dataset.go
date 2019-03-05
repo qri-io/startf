@@ -206,9 +206,6 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 		Schema: sch,
 	}
 
-	if d.ds.Structure == nil {
-		d.ds.Structure = st
-	}
 	w, err := dsio.NewEntryBuffer(st)
 	if err != nil {
 		return starlark.None, err
