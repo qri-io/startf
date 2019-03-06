@@ -3,9 +3,7 @@ jobs:
   build:
     working_directory: /go/src/github.com/qri-io/startf
     docker:
-      - image: circleci/golang:1.11
-        environment:
-          GOLANG_ENV: test
+      - image: circleci/golang:1.11.5
     environment:
       TEST_RESULTS: /tmp/test-results
     steps:
