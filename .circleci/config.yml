@@ -50,7 +50,14 @@ jobs:
             - /go/src/gx/
       - run:
           name: Run Tests
-          command: go test -v -race -coverprofile=coverage.txt -covermode=atomic
+          command: |
+            trap "go-junit-report <${TEST_RESULTS}/go-test.out > ${TEST_RESULTS}/go-test-report.xml" EXIT
+            ./.circleci/cover.test.sh | tee ${TEST_RESULTS}/go-test.out
       - run:
           name: Publish coverage info to codecov.io
           command: bash <(curl -s https://codecov.io/bash)
+      - store_artifacts:
+        path: /tmp/test-results
+        destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
