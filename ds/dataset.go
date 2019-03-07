@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"sync"
 
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
@@ -13,6 +14,28 @@ import (
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
+
+// ModuleName defines the expected name for this Module when used
+// in starlark's load() function, eg: load('dataset.star', 'dataset')
+const ModuleName = "dataset.star"
+
+var (
+	once          sync.Once
+	datasetModule starlark.StringDict
+)
+
+// LoadModule loads the base64 module.
+// It is concurrency-safe and idempotent.
+func LoadModule() (starlark.StringDict, error) {
+	once.Do(func() {
+		datasetModule = starlark.StringDict{
+			"dataset": starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
+				"new": starlark.NewBuiltin("new", New),
+			}),
+		}
+	})
+	return datasetModule, nil
+}
 
 // MutateFieldCheck is a function to check if a dataset field can be mutated
 // before mutating a field, dataset will call MutateFieldCheck with as specific
@@ -26,9 +49,16 @@ type Dataset struct {
 	check MutateFieldCheck
 }
 
-// NewDataset creates a dataset object
+// NewDataset creates a dataset object, intended to be called from go-land to prepare datasets
+// for handing to other functions
 func NewDataset(ds *dataset.Dataset, check MutateFieldCheck) *Dataset {
 	return &Dataset{ds: ds, check: check}
+}
+
+// New creates a new dataset from starlark land
+func New(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	d := &Dataset{ds: &dataset.Dataset{}}
+	return d.Methods(), nil
 }
 
 // Dataset returns the underlying dataset
@@ -39,10 +69,11 @@ func (d *Dataset) Dataset() *dataset.Dataset {
 // Methods exposes dataset methods as starlark values
 func (d *Dataset) Methods() *starlarkstruct.Struct {
 	return starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
-		"set_meta":   starlark.NewBuiltin("set_meta", d.SetMeta),
-		"set_schema": starlark.NewBuiltin("set_schema", d.SetSchema),
-		"get_body":   starlark.NewBuiltin("get_body", d.GetBody),
-		"set_body":   starlark.NewBuiltin("set_body", d.SetBody),
+		"set_meta":      starlark.NewBuiltin("set_meta", d.SetMeta),
+		"get_structure": starlark.NewBuiltin("get_structure", d.GetStructure),
+		"set_structure": starlark.NewBuiltin("set_structure", d.SetStructure),
+		"get_body":      starlark.NewBuiltin("get_body", d.GetBody),
+		"set_body":      starlark.NewBuiltin("set_body", d.SetBody),
 	})
 }
 
@@ -82,10 +113,29 @@ func (d *Dataset) SetMeta(thread *starlark.Thread, _ *starlark.Builtin, args sta
 	return starlark.None, d.ds.Meta.Set(key, val)
 }
 
-// SetSchema sets the dataset schema field
-func (d *Dataset) SetSchema(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// GetStructure gets a dataset structure component
+func (d *Dataset) GetStructure(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	if d.ds.Structure == nil {
+		return starlark.None, nil
+	}
+
+	data, err := json.Marshal(d.ds.Structure)
+	if err != nil {
+		return starlark.None, err
+	}
+
+	jsonData := map[string]interface{}{}
+	if err := json.Unmarshal(data, &jsonData); err != nil {
+		return starlark.None, err
+	}
+
+	return util.Marshal(jsonData)
+}
+
+// SetStructure sets the dataset structure component
+func (d *Dataset) SetStructure(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var valx starlark.Value
-	if err := starlark.UnpackPositionalArgs("set_schema", args, kwargs, 1, &valx); err != nil {
+	if err := starlark.UnpackPositionalArgs("set_structure", args, kwargs, 1, &valx); err != nil {
 		return nil, err
 	}
 
@@ -93,17 +143,11 @@ func (d *Dataset) SetSchema(thread *starlark.Thread, _ *starlark.Builtin, args s
 		return starlark.None, err
 	}
 
-	rs := map[string]interface{}{}
-	if err := json.Unmarshal([]byte(valx.String()), &rs); err != nil {
+	d.ds.Structure = &dataset.Structure{}
+	if err := json.Unmarshal([]byte(valx.String()), d.ds.Structure); err != nil {
 		return starlark.None, err
 	}
 
-	if d.ds.Structure == nil {
-		d.ds.Structure = &dataset.Structure{
-			Format: "json",
-		}
-	}
-	d.ds.Structure.Schema = rs
 	return starlark.None, nil
 }
 
@@ -206,9 +250,6 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 		Schema: sch,
 	}
 
-	if d.ds.Structure == nil {
-		d.ds.Structure = st
-	}
 	w, err := dsio.NewEntryBuffer(st)
 	if err != nil {
 		return starlark.None, err

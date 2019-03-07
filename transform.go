@@ -116,8 +116,6 @@ func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 	tr := io.TeeReader(script, buf)
 	pipeScript := qfs.NewMemfileReader(script.FileName(), tr)
 
-	// buffer for script output
-
 	t := &transform{
 		node:      o.Node,
 		ds:        ds,

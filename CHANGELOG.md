@@ -1,3 +1,26 @@
+<a name="0.3.0"></a>
+# [0.3.0](https://github.com/qri-io/startf/compare/v0.2.1...v0.3.0) (2019-03-07)
+
+a few small tweaks, and a version bump to match [starlib](https://github.com/qri-io/starlib)
+
+### Bug Fixes
+
+* **ds.set_body:** don't assign schemas when using set_body ([df4742b](https://github.com/qri-io/startf/commit/df4742b))
+* **set_meta:** use GoString to set meta keys ([af7a305](https://github.com/qri-io/startf/commit/af7a305))
+
+
+### Features
+
+* **ds:** structure component getter & setter methods ([0dc0d41](https://github.com/qri-io/startf/commit/0dc0d41))
+* **ds.set_body:** accept data_format argument in conjunction with raw=True ([3f12e40](https://github.com/qri-io/startf/commit/3f12e40))
+
+
+### BREAKING CHANGES
+
+* **ds:** ds.set_schema is removed, use ds.set_structure instead.
+
+
+
 <a name="0.2.1"></a>
 # [0.2.1](https://github.com/qri-io/startf/compare/v0.2.0...v0.2.1) (2019-02-05)
 
