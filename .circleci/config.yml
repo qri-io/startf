@@ -57,7 +57,7 @@ jobs:
           name: Publish coverage info to codecov.io
           command: bash <(curl -s https://codecov.io/bash)
       - store_artifacts:
-        path: /tmp/test-results
-        destination: raw-test-output
+          path: /tmp/test-results
+          destination: raw-test-output
       - store_test_results:
           path: /tmp/test-results
