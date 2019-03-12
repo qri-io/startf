@@ -46,7 +46,7 @@ func AddMutateFieldCheck(check func(path ...string) error) func(o *ExecOpts) {
 	}
 }
 
-// SetOutWriter provides a writer to record the "stdout" of the transform script to
+// SetOutWriter provides a writer to record the "stderr" diagnostic output of the transform script
 func SetOutWriter(w io.Writer) func(o *ExecOpts) {
 	return func(o *ExecOpts) {
 		if w != nil {
@@ -71,7 +71,7 @@ type transform struct {
 	checkFunc func(path ...string) error
 	globals   starlark.StringDict
 	bodyFile  qfs.File
-	stdout    io.Writer
+	stderr    io.Writer
 
 	download starlark.Iterable
 }
@@ -121,12 +121,12 @@ func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 		ds:        ds,
 		skyqri:    skyqri.NewModule(o.Node, ds),
 		checkFunc: o.MutateFieldCheck,
-		stdout:    o.OutWriter,
+		stderr:    o.OutWriter,
 	}
 
 	if o.Node != nil {
 		// if node localstreams exists, write to both localstreams and output buffer
-		t.stdout = io.MultiWriter(o.OutWriter, o.Node.LocalStreams.Out)
+		t.stderr = io.MultiWriter(o.OutWriter, o.Node.LocalStreams.ErrOut)
 	}
 
 	ctx := skyctx.NewContext(ds.Transform.Config, o.Secrets)
@@ -135,7 +135,7 @@ func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 		Load: t.Loader,
 		Print: func(thread *starlark.Thread, msg string) {
 			// note we're ignoring a returned error here
-			_, _ = t.stdout.Write([]byte(msg))
+			_, _ = t.stderr.Write([]byte(msg))
 		},
 	}
 
@@ -271,7 +271,7 @@ func (t *transform) setSpinnerMsg(msg string) {
 
 // print writes output only if a node is specified
 func (t *transform) print(msg string) {
-	t.stdout.Write([]byte(msg))
+	t.stderr.Write([]byte(msg))
 }
 
 func (t *transform) Loader(thread *starlark.Thread, module string) (dict starlark.StringDict, err error) {
