@@ -28,8 +28,8 @@ func TestExecScript(t *testing.T) {
 	}
 	ds.Transform.SetScriptFile(scriptFile(t, "testdata/tf.star"))
 
-	stdout := &bytes.Buffer{}
-	err := ExecScript(ds, SetOutWriter(stdout))
+	stderr := &bytes.Buffer{}
+	err := ExecScript(ds, SetOutWriter(stderr))
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -38,14 +38,14 @@ func TestExecScript(t *testing.T) {
 		t.Error("expected transform")
 	}
 
-	output, err := ioutil.ReadAll(stdout)
+	output, err := ioutil.ReadAll(stderr)
 	if err != nil {
 		t.Fatal(err)
 	}
 	expect := `🤖  running transform...
 hello world!`
 	if string(output) != expect {
-		t.Errorf("stdout mismatch. expected: '%s', got: '%s'", expect, string(output))
+		t.Errorf("stderr mismatch. expected: '%s', got: '%s'", expect, string(output))
 	}
 
 	entryReader, err := dsio.NewEntryReader(ds.Structure, ds.BodyFile())

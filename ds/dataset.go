@@ -139,16 +139,24 @@ func (d *Dataset) SetStructure(thread *starlark.Thread, _ *starlark.Builtin, arg
 		return nil, err
 	}
 
-	if err := d.checkField("structure", "schema"); err != nil {
+	if err := d.checkField("structure"); err != nil {
 		return starlark.None, err
 	}
 
 	d.ds.Structure = &dataset.Structure{}
-	if err := json.Unmarshal([]byte(valx.String()), d.ds.Structure); err != nil {
+
+	val, err := util.Unmarshal(valx)
+	if err != nil {
 		return starlark.None, err
 	}
 
-	return starlark.None, nil
+	data, err := json.Marshal(val)
+	if err != nil {
+		return starlark.None, err
+	}
+
+	err = json.Unmarshal(data, d.ds.Structure)
+	return starlark.None, err
 }
 
 // GetBody returns the body of the dataset we're transforming
