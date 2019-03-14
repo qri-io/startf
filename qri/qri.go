@@ -141,7 +141,7 @@ func (m *Module) loadDsHead(refstr string) (*dataset.Dataset, error) {
 	if err := repo.CanonicalizeDatasetRef(m.node.Repo, &ref); err != nil {
 		return nil, err
 	}
-	m.node.LocalStreams.Out.Write([]byte(fmt.Sprintf("loading dataset: %s", ref.String())))
+	m.node.LocalStreams.PrintErr(fmt.Sprintf("load: %s\n", ref.String()))
 
 	ds, err := dsfs.LoadDataset(m.node.Repo.Store(), ref.Path)
 	if err != nil {

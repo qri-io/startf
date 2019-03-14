@@ -167,6 +167,9 @@ func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 	}
 
 	err = callTransformFunc(t, thread, ctx)
+	if evalErr, ok := err.(*starlark.EvalError); ok {
+		return fmt.Errorf(evalErr.Backtrace())
+	}
 
 	// restore consumed script file
 	ds.Transform.SetScriptFile(qfs.NewMemfileBytes("transform.star", buf.Bytes()))
