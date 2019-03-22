@@ -31,7 +31,7 @@ func TestNewModule(t *testing.T) {
 func newLoader(ds *dataset.Dataset) func(thread *starlark.Thread, module string) (starlark.StringDict, error) {
 	return func(thread *starlark.Thread, module string) (starlark.StringDict, error) {
 		if module == ModuleName {
-			return starlark.StringDict{"qri": NewModule(nil, ds).Struct()}, nil
+			return starlark.StringDict{"qri": NewModule(nil).Struct()}, nil
 		}
 
 		return nil, fmt.Errorf("invalid module")

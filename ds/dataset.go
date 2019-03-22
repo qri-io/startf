@@ -167,7 +167,7 @@ func (d *Dataset) GetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 
 	var valx starlark.Value
 	if err := starlark.UnpackArgs("get_body", args, kwargs, "default?", &valx); err != nil {
-		return nil, err
+		return starlark.None, err
 	}
 
 	if d.ds.BodyFile() == nil {

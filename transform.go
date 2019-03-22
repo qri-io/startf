@@ -9,8 +9,10 @@ import (
 	"io/ioutil"
 
 	"github.com/qri-io/dataset"
+	"github.com/qri-io/dataset/dsfs"
 	"github.com/qri-io/qfs"
 	"github.com/qri-io/qri/p2p"
+	"github.com/qri-io/qri/repo"
 	"github.com/qri-io/starlib"
 	skyctx "github.com/qri-io/startf/context"
 	skyds "github.com/qri-io/startf/ds"
@@ -119,7 +121,7 @@ func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 	t := &transform{
 		node:      o.Node,
 		ds:        ds,
-		skyqri:    skyqri.NewModule(o.Node, ds),
+		skyqri:    skyqri.NewModule(o.Node),
 		checkFunc: o.MutateFieldCheck,
 		stderr:    o.OutWriter,
 	}
@@ -140,7 +142,7 @@ func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 	}
 
 	// execute the transformation
-	t.globals, err = starlark.ExecFile(thread, pipeScript.FileName(), pipeScript, nil)
+	t.globals, err = starlark.ExecFile(thread, pipeScript.FileName(), pipeScript, t.locals())
 	if err != nil {
 		if evalErr, ok := err.(*starlark.EvalError); ok {
 			return fmt.Errorf(evalErr.Backtrace())
@@ -282,4 +284,57 @@ func (t *transform) Loader(thread *starlark.Thread, module string) (dict starlar
 		return t.skyqri.Namespace(), nil
 	}
 	return starlib.Loader(thread, module)
+}
+
+func (t *transform) locals() starlark.StringDict {
+	return starlark.StringDict{
+		"load_dataset": starlark.NewBuiltin("load_dataset", t.LoadDataset),
+	}
+}
+
+func (t *transform) LoadDataset(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var refstr starlark.String
+	if err := starlark.UnpackArgs("load_dataset", args, kwargs, "ref", &refstr); err != nil {
+		return starlark.None, err
+	}
+
+	ds, err := t.loadDataset(refstr.GoString())
+	if err != nil {
+		return starlark.None, err
+	}
+
+	return skyds.NewDataset(ds, nil).Methods(), nil
+}
+
+func (t *transform) loadDataset(refstr string) (*dataset.Dataset, error) {
+	if t.node == nil {
+		return nil, fmt.Errorf("no qri node available to load dataset: %s", refstr)
+	}
+
+	ref, err := repo.ParseDatasetRef(refstr)
+	if err != nil {
+		return nil, err
+	}
+	if err := repo.CanonicalizeDatasetRef(t.node.Repo, &ref); err != nil {
+		return nil, err
+	}
+	t.node.LocalStreams.PrintErr(fmt.Sprintf("load: %s\n", ref.String()))
+
+	ds, err := dsfs.LoadDataset(t.node.Repo.Store(), ref.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	if ds.BodyFile() == nil {
+		if err = ds.OpenBodyFile(t.node.Repo.Filesystem()); err != nil {
+			return nil, err
+		}
+	}
+
+	if t.ds.Transform.Resources == nil {
+		t.ds.Transform.Resources = map[string]*dataset.TransformResource{}
+	}
+	t.ds.Transform.Resources[ref.Path] = &dataset.TransformResource{Path: ref.String()}
+
+	return ds, nil
 }
