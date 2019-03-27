@@ -23,7 +23,7 @@ import (
 
 // ExecOpts defines options for execution
 type ExecOpts struct {
-	Node             *p2p.QriNode
+	Node             *p2p.QriNode               // supply a QriNode to make the 'qri' module available in starlark
 	AllowFloat       bool                       // allow floating-point numbers
 	AllowSet         bool                       // allow set data type
 	AllowLambda      bool                       // allow lambda expressions
@@ -32,6 +32,7 @@ type ExecOpts struct {
 	Globals          starlark.StringDict        // global values to pass for script execution
 	MutateFieldCheck func(path ...string) error // func that errors if field specified by path is mutated
 	OutWriter        io.Writer                  // provide a writer to record script "stdout" to
+	ModuleLoader     ModuleLoader               // starlark module loader function
 }
 
 // AddQriNodeOpt adds a qri node to execution options
@@ -64,18 +65,28 @@ func DefaultExecOpts(o *ExecOpts) {
 	o.AllowLambda = true
 	o.Globals = starlark.StringDict{}
 	o.OutWriter = ioutil.Discard
+	o.ModuleLoader = DefaultModuleLoader
 }
 
 type transform struct {
-	node      *p2p.QriNode
-	ds        *dataset.Dataset
-	skyqri    *skyqri.Module
-	checkFunc func(path ...string) error
-	globals   starlark.StringDict
-	bodyFile  qfs.File
-	stderr    io.Writer
+	node         *p2p.QriNode
+	ds           *dataset.Dataset
+	skyqri       *skyqri.Module
+	checkFunc    func(path ...string) error
+	globals      starlark.StringDict
+	bodyFile     qfs.File
+	stderr       io.Writer
+	moduleLoader ModuleLoader
 
 	download starlark.Iterable
+}
+
+// ModuleLoader is a function that can load starlark modules
+type ModuleLoader func(thread *starlark.Thread, module string) (starlark.StringDict, error)
+
+// DefaultModuleLoader is the loader ExecScript will use unless configured otherwise
+var DefaultModuleLoader = func(thread *starlark.Thread, module string) (dict starlark.StringDict, err error) {
+	return starlib.Loader(thread, module)
 }
 
 // ExecScript executes a transformation against a starlark script file, giving back an EntryReader of resulting data
@@ -119,11 +130,12 @@ func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 	pipeScript := qfs.NewMemfileReader(script.FileName(), tr)
 
 	t := &transform{
-		node:      o.Node,
-		ds:        ds,
-		skyqri:    skyqri.NewModule(o.Node),
-		checkFunc: o.MutateFieldCheck,
-		stderr:    o.OutWriter,
+		node:         o.Node,
+		ds:           ds,
+		skyqri:       skyqri.NewModule(o.Node),
+		checkFunc:    o.MutateFieldCheck,
+		stderr:       o.OutWriter,
+		moduleLoader: o.ModuleLoader,
 	}
 
 	if o.Node != nil {
@@ -134,7 +146,7 @@ func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 	ctx := skyctx.NewContext(ds.Transform.Config, o.Secrets)
 
 	thread := &starlark.Thread{
-		Load: t.Loader,
+		Load: t.ModuleLoader,
 		Print: func(thread *starlark.Thread, msg string) {
 			// note we're ignoring a returned error here
 			_, _ = t.stderr.Write([]byte(msg))
@@ -279,19 +291,26 @@ func (t *transform) print(msg string) {
 	t.stderr.Write([]byte(msg))
 }
 
-func (t *transform) Loader(thread *starlark.Thread, module string) (dict starlark.StringDict, err error) {
-	if module == skyqri.ModuleName {
-		return t.skyqri.Namespace(), nil
-	}
-	return starlib.Loader(thread, module)
-}
-
 func (t *transform) locals() starlark.StringDict {
 	return starlark.StringDict{
 		"load_dataset": starlark.NewBuiltin("load_dataset", t.LoadDataset),
 	}
 }
 
+// ModuleLoader sums all loading assets to resolve a module name during transform execution
+func (t *transform) ModuleLoader(thread *starlark.Thread, module string) (dict starlark.StringDict, err error) {
+	if module == skyqri.ModuleName && t.skyqri != nil {
+		return t.skyqri.Namespace(), nil
+	}
+
+	if t.moduleLoader == nil {
+		return nil, fmt.Errorf("couldn't load module: %s", module)
+	}
+
+	return t.moduleLoader(thread, module)
+}
+
+// LoadDataset is a function
 func (t *transform) LoadDataset(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var refstr starlark.String
 	if err := starlark.UnpackArgs("load_dataset", args, kwargs, "ref", &refstr); err != nil {

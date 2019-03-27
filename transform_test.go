@@ -10,7 +10,12 @@ import (
 	"github.com/qri-io/dataset"
 	"github.com/qri-io/dataset/dsio"
 	"github.com/qri-io/qfs"
+	"github.com/qri-io/qri/config"
+	"github.com/qri-io/qri/p2p"
+	repoTest "github.com/qri-io/qri/repo/test"
+	"github.com/qri-io/starlib"
 	"go.starlark.net/starlark"
+	"go.starlark.net/starlarktest"
 )
 
 func scriptFile(t *testing.T, path string) qfs.File {
@@ -88,5 +93,45 @@ func TestExecScript2(t *testing.T) {
 	}
 	if ds.Transform == nil {
 		t.Error("expected transform")
+	}
+}
+
+func TestLoadDataset(t *testing.T) {
+	node := testQriNode(t)
+
+	ds := &dataset.Dataset{
+		Transform: &dataset.Transform{},
+	}
+	ds.Transform.SetScriptFile(scriptFile(t, "testdata/load_ds.star"))
+
+	err := ExecScript(ds, func(o *ExecOpts) {
+		o.Node = node
+		o.ModuleLoader = testModuleLoader(t)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testQriNode(t *testing.T) *p2p.QriNode {
+	mr, err := repoTest.NewTestRepo(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	node, err := p2p.NewQriNode(mr, config.DefaultP2PForTesting())
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	return node
+}
+
+func testModuleLoader(t *testing.T) func(thread *starlark.Thread, module string) (dict starlark.StringDict, err error) {
+	return func(thread *starlark.Thread, module string) (dict starlark.StringDict, err error) {
+		starlarktest.SetReporter(thread, t)
+		if module == "assert.star" {
+			return starlarktest.LoadAssertModule()
+		}
+		return starlib.Loader(thread, module)
 	}
 }
