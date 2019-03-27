@@ -4,6 +4,7 @@ load('dataset.star', 'dataset')
 ds = dataset.new()
 
 assert.eq(ds.set_meta("foo", "bar"), None)
+assert.eq(ds.get_meta(), {"foo": "bar", "qri": "md:0"})
 
 
 assert.eq(ds.get_structure(), None)
@@ -17,7 +18,7 @@ exp = {
   'schema': {
     'type': 'array'
   },
-  'errCount': 0, 
+  'errCount': 0,  
   'format': 'json', 
   'qri': 'st:0'
 }

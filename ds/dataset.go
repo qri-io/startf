@@ -70,6 +70,7 @@ func (d *Dataset) Dataset() *dataset.Dataset {
 func (d *Dataset) Methods() *starlarkstruct.Struct {
 	return starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
 		"set_meta":      starlark.NewBuiltin("set_meta", d.SetMeta),
+		"get_meta":      starlark.NewBuiltin("get_meta", d.GetMeta),
 		"get_structure": starlark.NewBuiltin("get_structure", d.GetStructure),
 		"set_structure": starlark.NewBuiltin("set_structure", d.SetStructure),
 		"get_body":      starlark.NewBuiltin("get_body", d.GetBody),
@@ -83,6 +84,25 @@ func (d *Dataset) checkField(path ...string) error {
 		return d.check(path...)
 	}
 	return nil
+}
+
+// GetMeta gets a dataset meta component
+func (d *Dataset) GetMeta(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	if d.ds.Meta == nil {
+		return starlark.None, nil
+	}
+
+	data, err := json.Marshal(d.ds.Meta)
+	if err != nil {
+		return starlark.None, err
+	}
+
+	jsonData := map[string]interface{}{}
+	if err := json.Unmarshal(data, &jsonData); err != nil {
+		return starlark.None, err
+	}
+
+	return util.Marshal(jsonData)
 }
 
 // SetMeta sets a dataset meta field
