@@ -1,3 +1,20 @@
+<a name="0.3.2"></a>
+# [0.3.2](https://github.com/qri-io/startf/compare/v0.3.1...v0.3.2) (2019-04-03)
+
+This release includes a breaking change described by [RFC0023](https://github.com/qri-io/rfcs/blob/master/text/0023-starlark_load_dataset.md). Datasets are now loaded with `load_dataset` and `qri.load_dataset` is removed.
+
+### Features
+
+* **ds:** add get_meta method that gets all dataset metadata ([d2dedcd](https://github.com/qri-io/startf/commit/d2dedcd))
+* **ModuleLoader:** allow supplying custom module loader ([f8c85b9](https://github.com/qri-io/startf/commit/f8c85b9))
+
+
+### BREAKING CHANGES
+
+* **ModuleLoader:** qri.load_dataset is no longer available, use load_dataset instead
+
+
+
 <a name="0.3.0"></a>
 # [0.3.0](https://github.com/qri-io/startf/compare/v0.2.1...v0.3.0) (2019-03-07)
 
