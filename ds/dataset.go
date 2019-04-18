@@ -191,8 +191,9 @@ func (d *Dataset) GetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 	}
 
 	if d.ds.BodyFile() == nil {
-		return valx, nil
+		return starlark.None, nil
 	}
+
 	if d.ds.Structure == nil {
 		return starlark.None, fmt.Errorf("error: no structure for previous dataset")
 	}
