@@ -32,6 +32,8 @@ $ go get github.com/qri-io/startf
 $ cd $GOPATH/src/github.com/qri-io/startf
 
 # run tests
+
+```
 $ go test ./...
 ```
 
@@ -50,7 +52,7 @@ Here's something slightly more complicated (but still very contrived) that modif
 
 ```python
 def transform(ds, ctx):
-  body = qri.get_body()
+  body = ds.get_body()
   if body != None:
     count = 0
     for entry in body:
@@ -64,27 +66,49 @@ Starlark special functions have a few rules on top of starlark itself:
 * All special functions are optional (you don't _need_ to define them), except `transform`. transform is required.
 * Special functions are always called in the same order
 
+Another import special function is `download`, which allows access to the `http` package:
+
+```python
+load("http.star", "http")
+
+def download(ctx):
+  data = http.get("http://example.com/data.json")  
+  return data
+```
+
+The result of this special function can be accessed using `ctx.download`:
+
+```python
+def transform(ds, ctx):
+  ds.set_body(ctx.download)
+```
+
 More docs on the provide API is coming soon.
 
 ## Running a transform
 
-Let's say the above function is saved as `transform.star`. First, create a dataset file (saved as `dataset.yaml`, for example) with at least the minimal structure:
+Let's say the above function is saved as `transform.star`. You can run it to create a new dataset by using:
+
+```
+qri save --file=transform.star me/dataset_name
+```
+
+Or, you can add more details by creating a dataset file (saved as `dataset.yaml`, for example) with additional structure:
 
 ```
 name: dataset_name
 transform:
   scriptpath: transform.star
-  config:
-    org: qri-io
-    repo: frontend
+meta:
+  title: My awesome dataset
 ```
 
 Then invoke qri:
 
 ```
-qri save --file=config.yaml
+qri save --file=dataset.yaml
 ```
 
-Fun! More info over on our [docs site](https://qri/io/docs)
+Fun! More info over on our [docs site](https://qri.io/docs)
 
 ** **
