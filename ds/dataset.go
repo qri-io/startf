@@ -44,11 +44,11 @@ type MutateFieldCheck func(path ...string) error
 
 // Dataset is a qri dataset starlark type
 type Dataset struct {
-	read    *dataset.Dataset
-	write   *dataset.Dataset
-	body    starlark.Iterable
-	check   MutateFieldCheck
-	modBody bool
+	read      *dataset.Dataset
+	write     *dataset.Dataset
+	bodyCache starlark.Iterable
+	check     MutateFieldCheck
+	modBody   bool
 }
 
 // NewDataset creates a dataset object, intended to be called from go-land to prepare datasets
@@ -63,15 +63,14 @@ func New(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwar
 	return d.Methods(), nil
 }
 
-// Dataset returns the underlying dataset
-func (d *Dataset) Dataset() *dataset.Dataset {
-	// TODO(dlong): What to do here?
-	return d.read
-}
-
 // SetMutable assigns an underlying dataset that can be mutated
 func (d *Dataset) SetMutable(ds *dataset.Dataset) {
 	d.write = ds
+}
+
+// IsBodyModified returns whether the body has been modified by set_body
+func (d *Dataset) IsBodyModified() bool {
+	return d.modBody
 }
 
 // Methods exposes dataset methods as starlark values
@@ -213,10 +212,11 @@ func (d *Dataset) SetStructure(thread *starlark.Thread, _ *starlark.Builtin, arg
 	return starlark.None, err
 }
 
-// GetBody returns the body of the dataset we're transforming
+// GetBody returns the body of the dataset we're transforming. The read version is returned until
+// the dataset is modified by set_body, then the write version is returned instead.
 func (d *Dataset) GetBody(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	if d.body != nil {
-		return d.body, nil
+	if d.bodyCache != nil {
+		return d.bodyCache, nil
 	}
 
 	var valx starlark.Value
@@ -240,7 +240,7 @@ func (d *Dataset) GetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 	}
 
 	if provider.Structure == nil {
-		return starlark.None, fmt.Errorf("error: no structure for previous dataset")
+		return starlark.None, fmt.Errorf("error: no structure for dataset")
 	}
 
 	// TODO - this is bad. make not bad.
@@ -268,13 +268,14 @@ func (d *Dataset) GetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 	}
 
 	if iter, ok := w.Value().(starlark.Iterable); ok {
-		d.body = iter
-		return d.body, nil
+		d.bodyCache = iter
+		return d.bodyCache, nil
 	}
 	return starlark.None, fmt.Errorf("value is not iterable")
 }
 
-// SetBody assigns the dataset body
+// SetBody assigns the dataset body. Future calls to GetBody will return this newly mutated body,
+// even if assigned value is the same as what was already there.
 func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var (
 		data       starlark.Value
@@ -284,6 +285,10 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 
 	if err := starlark.UnpackArgs("set_body", args, kwargs, "data", &data, "raw?", &raw, "data_format", &dataFormat); err != nil {
 		return starlark.None, err
+	}
+
+	if d.write == nil {
+		return starlark.None, fmt.Errorf("cannot call set_body on read-only dataset")
 	}
 
 	if err := d.checkField("body"); err != nil {
@@ -304,6 +309,7 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 		if str, ok := data.(starlark.String); ok {
 			d.write.SetBodyFile(qfs.NewMemfileBytes(fmt.Sprintf("data.%s", df), []byte(string(str))))
 			d.modBody = true
+			d.bodyCache = nil
 			return starlark.None, nil
 		}
 
@@ -340,6 +346,7 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 
 	d.write.SetBodyFile(qfs.NewMemfileBytes(fmt.Sprintf("data.%s", df), w.Bytes()))
 	d.modBody = true
+	d.bodyCache = nil
 
 	return starlark.None, nil
 }

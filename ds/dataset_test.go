@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/qri-io/dataset"
+	"github.com/qri-io/qfs"
 	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarktest"
@@ -29,6 +30,144 @@ func TestCheckFields(t *testing.T) {
 
 	if _, err := ds.SetStructure(thread, nil, starlark.Tuple{starlark.String("wut")}, nil); err != fieldErr {
 		t.Errorf("expected fieldErr, got: %s", err)
+	}
+}
+
+func TestCannotSetIfReadOnly(t *testing.T) {
+	ds := NewDataset(&dataset.Dataset{}, nil)
+	thread := &starlark.Thread{}
+	expect := "cannot call set_body on read-only dataset"
+	_, err := ds.SetBody(thread, nil, starlark.Tuple{starlark.NewList([]starlark.Value{starlark.String("a")})}, nil)
+	if err.Error() != expect {
+		t.Errorf("expected error: %s, got: %s", expect, err)
+	}
+	if ds.IsBodyModified() {
+		t.Errorf("expected body to not have been modified")
+	}
+}
+
+func TestSetMutable(t *testing.T) {
+	ds := NewDataset(&dataset.Dataset{
+		Structure: &dataset.Structure{
+			Format: "json",
+			Schema: dataset.BaseSchemaArray,
+		},
+	}, nil)
+	ds.SetMutable(&dataset.Dataset{
+		Structure: &dataset.Structure{
+			Format: "json",
+			Schema: dataset.BaseSchemaArray,
+		},
+	})
+	thread := &starlark.Thread{}
+
+	_, err := ds.SetBody(thread, nil, starlark.Tuple{starlark.NewList([]starlark.Value{starlark.String("a")})}, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	if !ds.IsBodyModified() {
+		t.Errorf("expected body to have been modified")
+	}
+
+	body, err := ds.GetBody(thread, nil, starlark.Tuple{}, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	expect := `["a"]`
+	if fmt.Sprintf("%s", body) != expect {
+		t.Errorf("expected body: %s, got: %s", expect, body)
+	}
+}
+
+func TestChangeBody(t *testing.T) {
+	// Create the previous version with the body ["b"]
+	prev := &dataset.Dataset{
+		Structure: &dataset.Structure{
+			Format: "json",
+			Schema: dataset.BaseSchemaArray,
+		},
+	}
+	prev.SetBodyFile(qfs.NewMemfileBytes("body.json", []byte("[\"b\"]")))
+	ds := NewDataset(prev, nil)
+	// Next version has no body yet
+	ds.SetMutable(&dataset.Dataset{
+		Structure: &dataset.Structure{
+			Format: "json",
+			Schema: dataset.BaseSchemaArray,
+		},
+	})
+	thread := &starlark.Thread{}
+
+	body, err := ds.GetBody(thread, nil, starlark.Tuple{}, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	expect := `["b"]`
+	if fmt.Sprintf("%s", body) != expect {
+		t.Errorf("expected body: %s, got: %s", expect, body)
+	}
+
+	_, err = ds.SetBody(thread, nil, starlark.Tuple{starlark.NewList([]starlark.Value{starlark.String("a")})}, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	if !ds.IsBodyModified() {
+		t.Errorf("expected body to have been modified")
+	}
+
+	body, err = ds.GetBody(thread, nil, starlark.Tuple{}, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	expect = `["a"]`
+	if fmt.Sprintf("%s", body) != expect {
+		t.Errorf("expected body: %s, got: %s", expect, body)
+	}
+}
+
+func TestChangeBodyEvenIfTheSame(t *testing.T) {
+	// Create the previous version with the body ["a"]
+	prev := &dataset.Dataset{
+		Structure: &dataset.Structure{
+			Format: "json",
+			Schema: dataset.BaseSchemaArray,
+		},
+	}
+	prev.SetBodyFile(qfs.NewMemfileBytes("body.json", []byte("[\"a\"]")))
+	ds := NewDataset(prev, nil)
+	// Next version has no body yet
+	ds.SetMutable(&dataset.Dataset{
+		Structure: &dataset.Structure{
+			Format: "json",
+			Schema: dataset.BaseSchemaArray,
+		},
+	})
+	thread := &starlark.Thread{}
+
+	body, err := ds.GetBody(thread, nil, starlark.Tuple{}, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	expect := `["a"]`
+	if fmt.Sprintf("%s", body) != expect {
+		t.Errorf("expected body: %s, got: %s", expect, body)
+	}
+
+	_, err = ds.SetBody(thread, nil, starlark.Tuple{starlark.NewList([]starlark.Value{starlark.String("a")})}, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	if !ds.IsBodyModified() {
+		t.Errorf("expected body to have been modified")
+	}
+
+	body, err = ds.GetBody(thread, nil, starlark.Tuple{}, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	expect = `["a"]`
+	if fmt.Sprintf("%s", body) != expect {
+		t.Errorf("expected body: %s, got: %s", expect, body)
 	}
 }
 
