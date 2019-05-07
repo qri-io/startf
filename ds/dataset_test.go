@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/qri-io/dataset"
 	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarktest"
@@ -15,6 +16,7 @@ func TestCheckFields(t *testing.T) {
 		return fieldErr
 	}
 	ds := NewDataset(nil, allErrCheck)
+	ds.SetMutable(&dataset.Dataset{})
 	thread := &starlark.Thread{}
 
 	if _, err := ds.SetBody(thread, nil, starlark.Tuple{starlark.String("data")}, nil); err != fieldErr {

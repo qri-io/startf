@@ -70,7 +70,8 @@ func DefaultExecOpts(o *ExecOpts) {
 
 type transform struct {
 	node         *p2p.QriNode
-	ds           *dataset.Dataset
+	next         *dataset.Dataset
+	prev         *dataset.Dataset
 	skyqri       *skyqri.Module
 	checkFunc    func(path ...string) error
 	globals      starlark.StringDict
@@ -89,14 +90,14 @@ var DefaultModuleLoader = func(thread *starlark.Thread, module string) (dict sta
 	return starlib.Loader(thread, module)
 }
 
-// ExecScript executes a transformation against a starlark script file, giving back an EntryReader of resulting data
-// ExecScript modifies the given dataset pointer. At bare minimum it will set transformation details, but starlark scripts can modify
-// many parts of the dataset pointer, including meta, structure, and transform
-// the returned io.Reader contains printed output from script execution
-func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
-	// script, bodyFile qfs.File,
+// ExecScript executes a transformation against a starlark script file. The next dataset pointer
+// may be modified, while the prev dataset point is read-only. At a bare minimum this function
+// will set transformation details, but starlark scripts can modify many parts of the dataset
+// pointer, including meta, structure, and transform. opts may provide more ways for output to
+// be produced from this function.
+func ExecScript(next, prev *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 	var err error
-	if ds.Transform == nil || ds.Transform.ScriptFile() == nil {
+	if next.Transform == nil || next.Transform.ScriptFile() == nil {
 		return fmt.Errorf("no script to execute")
 	}
 
@@ -119,10 +120,10 @@ func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 	}
 
 	// set transform details
-	ds.Transform.Syntax = "starlark"
-	ds.Transform.SyntaxVersion = Version
+	next.Transform.Syntax = "starlark"
+	next.Transform.SyntaxVersion = Version
 
-	script := ds.Transform.ScriptFile()
+	script := next.Transform.ScriptFile()
 	// "tee" the script reader to avoid losing script data, as starlark.ExecFile
 	// reads, data will be copied to buf, which is re-set to the transform script
 	buf := &bytes.Buffer{}
@@ -131,7 +132,8 @@ func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 
 	t := &transform{
 		node:         o.Node,
-		ds:           ds,
+		next:         next,
+		prev:         prev,
 		skyqri:       skyqri.NewModule(o.Node),
 		checkFunc:    o.MutateFieldCheck,
 		stderr:       o.OutWriter,
@@ -143,7 +145,7 @@ func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 		t.stderr = io.MultiWriter(o.OutWriter, o.Node.LocalStreams.ErrOut)
 	}
 
-	ctx := skyctx.NewContext(ds.Transform.Config, o.Secrets)
+	ctx := skyctx.NewContext(next.Transform.Config, o.Secrets)
 
 	thread := &starlark.Thread{
 		Load: t.ModuleLoader,
@@ -186,7 +188,7 @@ func ExecScript(ds *dataset.Dataset, opts ...func(o *ExecOpts)) error {
 	}
 
 	// restore consumed script file
-	ds.Transform.SetScriptFile(qfs.NewMemfileBytes("transform.star", buf.Bytes()))
+	next.Transform.SetScriptFile(qfs.NewMemfileBytes("transform.star", buf.Bytes()))
 
 	return err
 }
@@ -273,7 +275,8 @@ func callTransformFunc(t *transform, thread *starlark.Thread, ctx *skyctx.Contex
 	}
 	t.print("🤖  running transform...\n")
 
-	d := skyds.NewDataset(t.ds, t.checkFunc)
+	d := skyds.NewDataset(t.prev, t.checkFunc)
+	d.SetMutable(t.next)
 	if _, err = starlark.Call(thread, transform, starlark.Tuple{d.Methods(), ctx.Struct()}, nil); err != nil {
 		return err
 	}
@@ -350,10 +353,10 @@ func (t *transform) loadDataset(refstr string) (*dataset.Dataset, error) {
 		}
 	}
 
-	if t.ds.Transform.Resources == nil {
-		t.ds.Transform.Resources = map[string]*dataset.TransformResource{}
+	if t.next.Transform.Resources == nil {
+		t.next.Transform.Resources = map[string]*dataset.TransformResource{}
 	}
-	t.ds.Transform.Resources[ref.Path] = &dataset.TransformResource{Path: ref.String()}
+	t.next.Transform.Resources[ref.Path] = &dataset.TransformResource{Path: ref.String()}
 
 	return ds, nil
 }
