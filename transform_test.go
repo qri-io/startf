@@ -34,7 +34,7 @@ func TestExecScript(t *testing.T) {
 	ds.Transform.SetScriptFile(scriptFile(t, "testdata/tf.star"))
 
 	stderr := &bytes.Buffer{}
-	err := ExecScript(ds, SetOutWriter(stderr))
+	err := ExecScript(ds, nil, SetOutWriter(stderr))
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -83,7 +83,7 @@ func TestExecScript2(t *testing.T) {
 		Transform: &dataset.Transform{},
 	}
 	ds.Transform.SetScriptFile(scriptFile(t, "testdata/fetch.star"))
-	err := ExecScript(ds, func(o *ExecOpts) {
+	err := ExecScript(ds, nil, func(o *ExecOpts) {
 		o.Globals["test_server_url"] = starlark.String(s.URL)
 	})
 
@@ -104,12 +104,53 @@ func TestLoadDataset(t *testing.T) {
 	}
 	ds.Transform.SetScriptFile(scriptFile(t, "testdata/load_ds.star"))
 
-	err := ExecScript(ds, func(o *ExecOpts) {
+	err := ExecScript(ds, nil, func(o *ExecOpts) {
 		o.Node = node
 		o.ModuleLoader = testModuleLoader(t)
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestGetMetaNilPrev(t *testing.T) {
+	ds := &dataset.Dataset{
+		Transform: &dataset.Transform{},
+	}
+	ds.Transform.SetScriptFile(scriptFile(t, "testdata/meta_title.star"))
+	err := ExecScript(ds, nil)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	data, _ := ioutil.ReadAll(ds.BodyFile())
+	actual := string(data)
+	expect := `["no title"]`
+	if actual != expect {
+		t.Errorf("expected: \"%s\", actual: \"%s\"", expect, actual)
+	}
+}
+
+func TestGetMetaWithPrev(t *testing.T) {
+	ds := &dataset.Dataset{
+		Transform: &dataset.Transform{},
+	}
+	ds.Transform.SetScriptFile(scriptFile(t, "testdata/meta_title.star"))
+	prev := &dataset.Dataset{
+		Meta: &dataset.Meta{
+			Title: "test_title",
+		},
+	}
+	err := ExecScript(ds, prev)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	data, _ := ioutil.ReadAll(ds.BodyFile())
+	actual := string(data)
+	expect := `["title: test_title"]`
+	if actual != expect {
+		t.Errorf("expected: \"%s\", actual: \"%s\"", expect, actual)
 	}
 }
 
