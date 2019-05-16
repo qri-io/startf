@@ -38,7 +38,7 @@ assert.eq(ds.set_body("[[1,2,3]]", parse_as="json"), None)
 assert.eq(ds.get_body(), bd)
 
 # csv_ds is a global variable provided by dataset_test.go
-# "cycling" csv data through starlark shouldn't have significant effects on the 
+# round-tripping csv data through starlark shouldn't have significant effects on the 
 # encoded data. whitespace is *not* significant.
 # csv data is one of the harder formats, where there header row must be preserved
 csv_ds.set_body(csv_ds.get_body())

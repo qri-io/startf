@@ -248,9 +248,9 @@ func (d *Dataset) GetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 	if err != nil {
 		return starlark.None, err
 	}
-	provider.SetBodyFile(qfs.NewMemfileBytes("data.json", data))
+	provider.SetBodyFile(qfs.NewMemfileBytes("body.json", data))
 
-	rr, err := dsio.NewEntryReader(provider.Structure, qfs.NewMemfileBytes("data.json", data))
+	rr, err := dsio.NewEntryReader(provider.Structure, qfs.NewMemfileBytes("body.json", data))
 	if err != nil {
 		return starlark.None, fmt.Errorf("error allocating data reader: %s", err)
 	}
@@ -310,7 +310,7 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 			return starlark.None, fmt.Errorf("expected data for '%s' format to be a string", df)
 		}
 
-		d.write.SetBodyFile(qfs.NewMemfileBytes(fmt.Sprintf("data.%s", df), []byte(string(str))))
+		d.write.SetBodyFile(qfs.NewMemfileBytes(fmt.Sprintf("body.%s", df), []byte(string(str))))
 		d.modBody = true
 		d.bodyCache = nil
 		return starlark.None, nil

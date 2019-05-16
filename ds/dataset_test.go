@@ -228,7 +228,7 @@ bat,3,meh
 			},
 		},
 	}
-	ds.SetBodyFile(qfs.NewMemfileBytes("data.csv", []byte(text)))
+	ds.SetBodyFile(qfs.NewMemfileBytes("body.csv", []byte(text)))
 
 	d := NewDataset(ds, nil)
 	d.SetMutable(&dataset.Dataset{
