@@ -36,3 +36,13 @@ assert.eq(ds.set_body("[[1,2,3]]", raw=True), None)
 
 # TODO - haven't thought through this yet
 assert.eq(ds.get_body(), bd)
+
+# csv_ds is a global variable provided by dataset_test.go
+# "cycling" csv data through starlark shouldn't have significant effects on the 
+# encoded data. whitespace is *not* significant.
+# csv data is one of the harder formats, where there header row must be preserved
+csv_ds.set_body(csv_ds.get_body())
+
+expect_data = [["foo",1,"true"], ["bar",2,"false"], ["bat",3,"meh"]]
+assert.eq(expect_data, csv_ds.get_body())
+assert.eq(csv_ds.get_structure()['format'], 'csv')

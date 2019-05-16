@@ -177,7 +177,9 @@ func TestFile(t *testing.T) {
 	starlarktest.SetReporter(thread, t)
 
 	// Execute test file
-	_, err := starlark.ExecFile(thread, "testdata/test.star", nil, nil)
+	_, err := starlark.ExecFile(thread, "testdata/test.star", nil, starlark.StringDict{
+		"csv_ds": csvDataset().Methods(),
+	})
 	if err != nil {
 		if ee, ok := err.(*starlark.EvalError); ok {
 			t.Error(ee.Backtrace())
@@ -199,4 +201,38 @@ func newLoader() func(thread *starlark.Thread, module string) (starlark.StringDi
 
 		return nil, fmt.Errorf("invalid module")
 	}
+}
+
+func csvDataset() *Dataset {
+	text := `title,count,is great
+foo,1,true
+bar,2,false
+bat,3,meh
+`
+	ds := &dataset.Dataset{
+		Structure: &dataset.Structure{
+			Format: "csv",
+			FormatConfig: map[string]interface{}{
+				"headerRow": true,
+			},
+			Schema: map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{
+					"type": "array",
+					"items": []interface{}{
+						map[string]interface{}{"title": "title", "type": "string"},
+						map[string]interface{}{"title": "count", "type": "integer"},
+						map[string]interface{}{"title": "is great", "type": "string"},
+					},
+				},
+			},
+		},
+	}
+	ds.SetBodyFile(qfs.NewMemfileBytes("data.csv", []byte(text)))
+
+	d := NewDataset(ds, nil)
+	d.SetMutable(&dataset.Dataset{
+		Structure: ds.Structure,
+	})
+	return d
 }

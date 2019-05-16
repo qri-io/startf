@@ -295,6 +295,11 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 		return starlark.None, err
 	}
 
+	if err := d.checkField("structure"); err != nil {
+		err = fmt.Errorf("cannot use a transform to set the body of a dataset and manually adjust structure at the same time")
+		return starlark.None, err
+	}
+
 	df := dataFormat.GoString()
 	if df == "" {
 		// default to json
@@ -321,22 +326,14 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 		return starlark.None, fmt.Errorf("expected body to be iterable")
 	}
 
-	sch := dataset.BaseSchemaArray
-	if data.Type() == "dict" {
-		sch = dataset.BaseSchemaObject
-	}
+	d.write.Structure = d.writeStructure(data)
 
-	st := &dataset.Structure{
-		Format: df,
-		Schema: sch,
-	}
-
-	w, err := dsio.NewEntryBuffer(st)
+	w, err := dsio.NewEntryBuffer(d.write.Structure)
 	if err != nil {
 		return starlark.None, err
 	}
 
-	r := NewEntryReader(st, iter)
+	r := NewEntryReader(d.write.Structure, iter)
 	if err := dsio.Copy(r, w); err != nil {
 		return starlark.None, err
 	}
@@ -344,9 +341,35 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 		return starlark.None, err
 	}
 
-	d.write.SetBodyFile(qfs.NewMemfileBytes(fmt.Sprintf("data.%s", df), w.Bytes()))
+	d.write.SetBodyFile(qfs.NewMemfileBytes(fmt.Sprintf("body.%s", d.write.Structure.Format), w.Bytes()))
 	d.modBody = true
 	d.bodyCache = nil
 
 	return starlark.None, nil
+}
+
+// writeStructure determines the destination data structure for writing a
+// dataset body, falling back to a default json structure based on input values
+// if no prior structure exists
+func (d *Dataset) writeStructure(data starlark.Value) *dataset.Structure {
+	// if the write structure has been set, use that
+	if d.write != nil && d.write.Structure != nil {
+		return d.write.Structure
+	}
+
+	// fall back to inheriting from read structure
+	if d.read != nil && d.read.Structure != nil {
+		return d.read.Structure
+	}
+
+	// use a default of json as a last resort
+	sch := dataset.BaseSchemaArray
+	if data.Type() == "dict" {
+		sch = dataset.BaseSchemaObject
+	}
+
+	return &dataset.Structure{
+		Format: "json",
+		Schema: sch,
+	}
 }
