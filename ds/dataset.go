@@ -278,12 +278,11 @@ func (d *Dataset) GetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 // even if assigned value is the same as what was already there.
 func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var (
-		data       starlark.Value
-		raw        starlark.Bool
-		dataFormat starlark.String
+		data    starlark.Value
+		parseAs starlark.String
 	)
 
-	if err := starlark.UnpackArgs("set_body", args, kwargs, "data", &data, "raw?", &raw, "data_format", &dataFormat); err != nil {
+	if err := starlark.UnpackArgs("set_body", args, kwargs, "data", &data, "parse_as?", &parseAs); err != nil {
 		return starlark.None, err
 	}
 
@@ -300,30 +299,26 @@ func (d *Dataset) SetBody(thread *starlark.Thread, _ *starlark.Builtin, args sta
 		return starlark.None, err
 	}
 
-	df := dataFormat.GoString()
-	if df == "" {
-		// default to json
-		df = "json"
-	}
-
-	if _, err := dataset.ParseDataFormatString(df); err != nil {
-		return starlark.None, fmt.Errorf("invalid data_format: '%s'", df)
-	}
-
-	if raw {
-		if str, ok := data.(starlark.String); ok {
-			d.write.SetBodyFile(qfs.NewMemfileBytes(fmt.Sprintf("data.%s", df), []byte(string(str))))
-			d.modBody = true
-			d.bodyCache = nil
-			return starlark.None, nil
+	df := parseAs.GoString()
+	if df != "" {
+		if _, err := dataset.ParseDataFormatString(df); err != nil {
+			return starlark.None, fmt.Errorf("invalid parse_as format: '%s'", df)
 		}
 
-		return starlark.None, fmt.Errorf("expected raw data for body to be a string")
+		str, ok := data.(starlark.String)
+		if !ok {
+			return starlark.None, fmt.Errorf("expected data for '%s' format to be a string", df)
+		}
+
+		d.write.SetBodyFile(qfs.NewMemfileBytes(fmt.Sprintf("data.%s", df), []byte(string(str))))
+		d.modBody = true
+		d.bodyCache = nil
+		return starlark.None, nil
 	}
 
 	iter, ok := data.(starlark.Iterable)
 	if !ok {
-		return starlark.None, fmt.Errorf("expected body to be iterable")
+		return starlark.None, fmt.Errorf("expected body data to be iterable")
 	}
 
 	d.write.Structure = d.writeStructure(data)

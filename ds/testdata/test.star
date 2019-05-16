@@ -32,7 +32,7 @@ bd_obj = {'a': [1,2,3]}
 
 assert.eq(ds.set_body(bd_obj), None)
 assert.eq(ds.set_body(bd), None)
-assert.eq(ds.set_body("[[1,2,3]]", raw=True), None)
+assert.eq(ds.set_body("[[1,2,3]]", parse_as="json"), None)
 
 # TODO - haven't thought through this yet
 assert.eq(ds.get_body(), bd)
